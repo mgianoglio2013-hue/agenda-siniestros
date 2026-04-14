@@ -26,6 +26,18 @@ const ETAPAS = [
 const PRIO_C = { alta:"#ef4444", media:"#f59e0b", baja:"#22c55e" };
 const CIAS_LIST = ["Integrity Seguros","Rus Seguros","Sancor Seguros"];
 
+// ─── URL del Agente Railway ───────────────────────────────────────────────────
+const AGENTE_URL = "https://agente-siniestros-production.up.railway.app";
+async function llamarAgente(tarea, siniestro_id, cia, datos={}) {
+  try {
+    const res = await fetch(AGENTE_URL+"/ejecutar", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({siniestro_id, cia, tarea, datos})
+    });
+    return await res.json();
+  } catch(e) { return {ok:false, mensaje:e.message}; }
+}
+
 // ─── Llamada al API de Claude con Google Drive MCP ───────────────────────────
 async function callDriveAgent(instruction, systemPrompt) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -341,8 +353,14 @@ export default function AgendaDrive() {
 
               <div style={{background:"#0d1225",border:"1px solid #1e3a5f",borderRadius:10,padding:"13px"}}>
                 <div style={{fontFamily:"monospace",fontSize:10,color:"#60a5fa",letterSpacing:2,marginBottom:8}}>⚡ ACCIONES</div>
-                {[{label:"⚖️ Generar Dictamen IA",c:"#7c3aed"},{label:"📲 WhatsApp asegurado",c:"#16a34a"},{label:"📄 Descargar docs",c:"#0891b2"},{label:"📸 Scanner de daños (pronto)",c:"#475569"}].map((a,i)=>(
-                  <button key={i} className="btn" style={{width:"100%",marginBottom:7,padding:"8px 11px",background:a.c+"22",color:a.c,border:`1px solid ${a.c}44`,borderRadius:7,cursor:"pointer",fontSize:12,fontWeight:"bold",textAlign:"left",transition:"all .2s",fontFamily:"monospace"}}>{a.label}</button>
+                {[
+                  {label:"🤖 Escanear Integrity",c:"#16a34a",fn:()=>llamarAgente("escanear_nuevos","*","Integrity Seguros").then(r=>showNotif(r.mensaje||"Escaneando..."))},
+                  {label:"⚖️ Generar Dictamen IA",c:"#7c3aed",fn:null},
+                  {label:"📲 WhatsApp asegurado",c:"#0891b2",fn:null},
+                  {label:"📄 Descargar docs",c:"#1d4ed8",fn:null},
+                  {label:"📸 Scanner de daños (pronto)",c:"#475569",fn:null}
+                ].map((a,i)=>(
+                  <button key={i} className="btn" onClick={()=>a.fn&&a.fn()} style={{width:"100%",marginBottom:7,padding:"8px 11px",background:a.c+"22",color:a.c,border:`1px solid ${a.c}44`,borderRadius:7,cursor:"pointer",fontSize:12,fontWeight:"bold",textAlign:"left",transition:"all .2s",fontFamily:"monospace"}}>{a.label}</button>
                 ))}
               </div>
 
