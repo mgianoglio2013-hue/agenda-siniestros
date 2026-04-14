@@ -1,56 +1,100 @@
 import { useState } from "react";
 
-// Ley de Tránsito Argentina - Artículos relevantes para dictamen
-const LEY_TRANSITO = `
-LEY NACIONAL DE TRÁNSITO 24.449 - ARTÍCULOS RELEVANTES PARA DICTAMEN DE CULPABILIDAD
+// Ley de Tránsito Argentina - Artículos relevantes
+const ARTICULOS = {
+  "39": "Prioridad de paso - El que viene por la derecha tiene prioridad",
+  "40": "Giros - Debe advertir con luz de giro con 30m de antelación",
+  "41": "Adelantamiento - Solo por la izquierda",
+  "42": "Velocidad - Prohibido variar bruscamente",
+  "43": "Marcha atrás - Debe asegurarse de no embestir",
+  "48": "Velocidad máxima - 40km/h calles, 60km/h avenidas",
+  "50": "Prohibiciones - No conducir con impedimentos"
+};
 
-Art. 39 - PRIORIDADES:
-a) En las bocacalles tiene prioridad de paso el vehículo que circula por la derecha.
-b) Excepción a la prioridad: 
-   - Los peatones que cruzan lícitamente la calzada
-   - Los vehículos ferroviarios
-   - Los vehículos del servicio público de urgencia
-   - Los vehículos que circulan por una semiautopista
-c) Antes de ingresar a una arteria de mayor jerarquía debe detenerse.
-d) Los que descienden tienen prioridad sobre los que ascienden.
+// Palabras clave para detectar infracciones
+const PATRONES_CULPA = [
+  { palabras: ["marcha atrás", "marcha atras", "retrocediendo", "retroceder"], articulo: "43", culpa: 100, descripcion: "Maniobra de marcha atrás sin precaución" },
+  { palabras: ["no cedí", "no cedi", "no le di paso", "no frené", "no frene"], articulo: "39", culpa: 80, descripcion: "No ceder el paso" },
+  { palabras: ["giré sin", "gire sin", "doblé sin", "doble sin", "sin señalizar"], articulo: "40", culpa: 70, descripcion: "Giro sin señalización" },
+  { palabras: ["estacionado", "detenido", "parado"], articulo: "43", culpa: 0, descripcion: "Vehículo estacionado (sin culpa)" },
+  { palabras: ["exceso de velocidad", "muy rápido", "alta velocidad"], articulo: "48", culpa: 80, descripcion: "Exceso de velocidad" },
+  { palabras: ["semáforo en rojo", "semaforo en rojo", "luz roja"], articulo: "50", culpa: 100, descripcion: "Cruzar semáforo en rojo" },
+  { palabras: ["no lo vi", "no lo ví", "no miré", "no mire", "distracción"], articulo: "50", culpa: 70, descripcion: "Falta de atención" },
+  { palabras: ["choqué", "choque", "impacté", "impacte", "embestí", "embesti", "colisioné", "colisione"], articulo: "42", culpa: 60, descripcion: "Colisión activa" },
+];
 
-Art. 40 - GIROS Y ROTONDAS:
-a) Advertir con luz de giro con antelación no menor a 30m.
-b) Circular pegado al cordón derecho para doblar a la derecha.
-c) Circular pegado al eje central para doblar a la izquierda.
-d) En rotondas, la circulación es en sentido contrario a las agujas del reloj.
-e) Prioridad de quien está adentro de la rotonda.
+// Función de análisis local
+const analizarLocal = (declaracion, numeroSiniestro) => {
+  const texto = declaracion.toLowerCase();
+  
+  // Detectar infracciones
+  let infraccionesDetectadas = [];
+  let culpaTotal = 0;
+  let articulosViolados = [];
 
-Art. 41 - ADELANTAMIENTO:
-a) Solo por la izquierda, excepto que el vehículo adelantado indique giro a la izquierda.
-b) Prohibido en curvas, puentes, túneles y cruces ferroviarios.
-c) El vehículo adelantado debe facilitar la maniobra.
+  PATRONES_CULPA.forEach(patron => {
+    patron.palabras.forEach(palabra => {
+      if (texto.includes(palabra) && !infraccionesDetectadas.includes(patron.descripcion)) {
+        infraccionesDetectadas.push(patron.descripcion);
+        articulosViolados.push(`Art. ${patron.articulo}`);
+        culpaTotal = Math.max(culpaTotal, patron.culpa);
+      }
+    });
+  });
 
-Art. 42 - VARIACIONES DE VELOCIDAD:
-a) Prohibido variar bruscamente la velocidad.
-b) El conductor que desee disminuir debe advertirlo previamente.
+  // Si menciona marcha atrás y vehículo estacionado = culpa del que hacía marcha atrás
+  const haciaAtras = texto.includes("marcha atr") || texto.includes("retrocedi");
+  const vehiculoEstacionado = texto.includes("estacionado") || texto.includes("detenido");
 
-Art. 43 - MARCHA ATRÁS:
-a) Limitada a maniobras complementarias.
-b) Debe asegurarse de no embestir a ningún peatón o vehículo.
+  let conductorA = {
+    identificacion: "Asegurado (declarante)",
+    porcentaje_culpa: haciaAtras ? 100 : (culpaTotal > 0 ? culpaTotal : 50),
+    infracciones: haciaAtras ? ["Maniobra de marcha atrás sin precaución adecuada"] : infraccionesDetectadas,
+    articulos_violados: haciaAtras ? ["Art. 43 - Marcha atrás"] : articulosViolados
+  };
 
-Art. 48 - VELOCIDAD MÁXIMA:
-a) Zona urbana: 40 km/h en calles, 60 km/h en avenidas.
-b) Zona rural: 110 km/h para autos, 80 km/h para camiones.
-c) Zona semiurbana: 60 km/h.
+  let conductorB = {
+    identificacion: "Tercero",
+    porcentaje_culpa: vehiculoEstacionado ? 0 : (100 - conductorA.porcentaje_culpa),
+    infracciones: vehiculoEstacionado ? [] : ["Posible contribución al siniestro"],
+    articulos_violados: []
+  };
 
-Art. 50 - PROHIBICIONES:
-a) Conducir con impedimentos físicos o psíquicos.
-b) Conducir en estado de intoxicación alcohólica o bajo efectos de estupefacientes.
-c) Conducir sin habilitación.
-d) Usar auriculares conectados a aparatos de audio.
+  // Caso específico: marcha atrás contra estacionado
+  if (haciaAtras && vehiculoEstacionado) {
+    conductorA.porcentaje_culpa = 100;
+    conductorA.infracciones = ["Realizó marcha atrás sin verificar que no hubiera obstáculos"];
+    conductorA.articulos_violados = ["Art. 43 - Marcha atrás: debe asegurarse de no embestir"];
+    conductorB.porcentaje_culpa = 0;
+    conductorB.infracciones = [];
+    conductorB.identificacion = "Tercero (vehículo estacionado)";
+  }
 
-CRITERIOS DE CULPABILIDAD:
-- 100% culpable: Violación clara de norma específica (no ceder paso, semáforo en rojo, exceso velocidad probado)
-- 70-30: Infracción principal de uno con contribución menor del otro
-- 50-50: Ambos conductores con infracciones similares
-- 0%: Sin responsabilidad (caso fortuito, fuerza mayor, víctima de maniobra imprevista)
-`;
+  // Generar conclusión
+  let conclusion = "";
+  let recomendacion = "";
+
+  if (conductorA.porcentaje_culpa === 100) {
+    conclusion = `El asegurado es 100% responsable del siniestro. ${conductorA.infracciones[0]}. El tercero no tiene responsabilidad ya que su vehículo se encontraba correctamente estacionado.`;
+    recomendacion = "APROBADO para pago al tercero";
+  } else if (conductorA.porcentaje_culpa >= 70) {
+    conclusion = `El asegurado tiene responsabilidad mayoritaria (${conductorA.porcentaje_culpa}%) en el siniestro por ${conductorA.infracciones[0]?.toLowerCase() || 'las infracciones detectadas'}.`;
+    recomendacion = "APROBADO para pago proporcional";
+  } else if (conductorA.porcentaje_culpa >= 50) {
+    conclusion = `Responsabilidad compartida. Ambos conductores contribuyeron al siniestro.`;
+    recomendacion = "REQUIERE MÁS INFORMACIÓN";
+  } else {
+    conclusion = `El tercero tiene mayor responsabilidad en el siniestro.`;
+    recomendacion = "RECHAZADO - Reclamar al tercero";
+  }
+
+  return {
+    conductor_a: conductorA,
+    conductor_b: conductorB,
+    conclusion: conclusion,
+    recomendacion: recomendacion
+  };
+};
 
 export default function DictamenIA({ siniestro, onVolver }) {
   const [declaracion, setDeclaracion] = useState("");
@@ -68,71 +112,12 @@ export default function DictamenIA({ siniestro, onVolver }) {
     setError(null);
     setDictamen(null);
 
+    // Simular tiempo de análisis
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [
-            {
-              role: "user",
-              content: `Sos un perito de siniestros de tránsito en Argentina. Analizá esta declaración y emití un dictamen de culpabilidad basándote en la Ley Nacional de Tránsito 24.449.
-
-SINIESTRO: #${siniestro?.numero || "N/D"}
-COMPAÑÍA: ${siniestro?.cia || "INTEGRITY"}
-
-DECLARACIÓN DEL SINIESTRO:
-${declaracion}
-
-NORMATIVA APLICABLE:
-${LEY_TRANSITO}
-
-Respondé en formato JSON con esta estructura exacta:
-{
-  "conductor_a": {
-    "identificacion": "descripción breve del conductor A",
-    "porcentaje_culpa": número entre 0 y 100,
-    "infracciones": ["lista de infracciones cometidas"],
-    "articulos_violados": ["Art. XX - descripción"]
-  },
-  "conductor_b": {
-    "identificacion": "descripción breve del conductor B",
-    "porcentaje_culpa": número entre 0 y 100,
-    "infracciones": ["lista de infracciones cometidas"],
-    "articulos_violados": ["Art. XX - descripción"]
-  },
-  "conclusion": "Resumen del dictamen en 2-3 oraciones",
-  "recomendacion": "APROBADO para pago" o "RECHAZADO" o "REQUIERE MÁS INFORMACIÓN"
-}
-
-Solo respondé con el JSON, sin texto adicional ni markdown.`
-            }
-          ]
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Error de API: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const textoRespuesta = data.content
-        .map(item => item.text || "")
-        .join("");
-
-      // Parsear JSON de la respuesta
-      const jsonMatch = textoRespuesta.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const resultado = JSON.parse(jsonMatch[0]);
-        setDictamen(resultado);
-      } else {
-        throw new Error("No se pudo parsear la respuesta del análisis");
-      }
-
+      const resultado = analizarLocal(declaracion, siniestro?.numero);
+      setDictamen(resultado);
     } catch (err) {
       console.error("Error al analizar:", err);
       setError(`Error al analizar: ${err.message}`);
@@ -174,7 +159,7 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
         </button>
         <div>
           <h1 style={{ margin: 0, fontSize: "20px", fontWeight: "700", color: "#1e293b" }}>
-            ⚖️ Dictamen de Culpabilidad IA
+            ⚖️ Dictamen de Culpabilidad
           </h1>
           <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
             Siniestro #{siniestro?.numero || "N/D"} - {siniestro?.cia || "INTEGRITY"}
@@ -195,13 +180,13 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
               Declaración del Siniestro
             </h2>
             <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#64748b" }}>
-              Pegá la declaración de las partes involucradas. El agente analizará según la Ley de Tránsito Argentina.
+              Pegá la declaración de las partes involucradas. El sistema analizará según la Ley de Tránsito Argentina.
             </p>
             
             <textarea
               value={declaracion}
               onChange={(e) => setDeclaracion(e.target.value)}
-              placeholder="Ejemplo: El día 15/03/2026 a las 14:30hs, circulaba por Av. Colón en dirección norte cuando al llegar a la intersección con calle San Juan, el vehículo del tercero que venía por mi derecha impactó mi lateral izquierdo. El semáforo estaba en verde para mí..."
+              placeholder="Ejemplo: El día 15/03/2026 a las 14:30hs, circulaba por Av. Colón en dirección norte cuando al llegar a la intersección con calle San Juan..."
               style={{
                 width: "100%",
                 minHeight: "300px",
@@ -211,7 +196,8 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
                 fontSize: "14px",
                 lineHeight: "1.6",
                 resize: "vertical",
-                fontFamily: "inherit"
+                fontFamily: "inherit",
+                boxSizing: "border-box"
               }}
             />
 
@@ -251,16 +237,9 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
               }}
             >
               {analizando ? (
-                <>
-                  <span style={{ 
-                    display: "inline-block", 
-                    animation: "spin 1s linear infinite",
-                    fontSize: "16px"
-                  }}>⏳</span>
-                  Analizando...
-                </>
+                <>⏳ Analizando...</>
               ) : (
-                <>⚖️ Analizar con IA</>
+                <>⚖️ Analizar Culpabilidad</>
               )}
             </button>
 
@@ -271,13 +250,16 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
               backgroundColor: "#f8fafc",
               borderRadius: "8px"
             }}>
-              <h3 style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
+              <h3 style={{ margin: "0 0 12px", fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
                 📚 Normativa aplicada
               </h3>
-              <p style={{ margin: 0, fontSize: "12px", color: "#64748b", lineHeight: "1.5" }}>
-                Ley Nacional de Tránsito 24.449: Art. 39 (Prioridades), Art. 40 (Giros), 
-                Art. 41 (Adelantamiento), Art. 42 (Velocidad), Art. 48 (Límites), Art. 50 (Prohibiciones)
-              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {Object.entries(ARTICULOS).map(([num, desc]) => (
+                  <div key={num} style={{ fontSize: "12px", color: "#64748b" }}>
+                    <strong style={{ color: "#475569" }}>Art. {num}:</strong> {desc}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -318,21 +300,22 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
                 </span>
               </div>
 
-              {/* Conductor A */}
+              {/* Conductor A - Asegurado */}
               <div style={{
                 padding: "16px",
-                backgroundColor: "#fef2f2",
+                backgroundColor: dictamen.conductor_a?.porcentaje_culpa > 50 ? "#fef2f2" : "#f0fdf4",
                 borderRadius: "10px",
-                marginBottom: "12px"
+                marginBottom: "12px",
+                border: `1px solid ${dictamen.conductor_a?.porcentaje_culpa > 50 ? "#fecaca" : "#bbf7d0"}`
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "8px" }}>
-                  <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "#dc2626" }}>
-                    🚗 Conductor A
+                  <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
+                    🚗 Asegurado
                   </h3>
                   <span style={{
-                    fontSize: "24px",
+                    fontSize: "28px",
                     fontWeight: "700",
-                    color: "#dc2626"
+                    color: dictamen.conductor_a?.porcentaje_culpa > 50 ? "#dc2626" : "#16a34a"
                   }}>
                     {dictamen.conductor_a?.porcentaje_culpa || 0}%
                   </span>
@@ -341,26 +324,32 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
                   {dictamen.conductor_a?.identificacion}
                 </p>
                 {dictamen.conductor_a?.infracciones?.length > 0 && (
-                  <div style={{ marginTop: "8px" }}>
-                    <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>Infracciones:</div>
-                    <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#475569" }}>
+                  <div style={{ marginTop: "12px" }}>
+                    <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "6px", fontWeight: "600" }}>
+                      INFRACCIONES DETECTADAS:
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "13px", color: "#475569" }}>
                       {dictamen.conductor_a.infracciones.map((inf, i) => (
-                        <li key={i}>{inf}</li>
+                        <li key={i} style={{ marginBottom: "4px" }}>{inf}</li>
                       ))}
                     </ul>
                   </div>
                 )}
                 {dictamen.conductor_a?.articulos_violados?.length > 0 && (
-                  <div style={{ marginTop: "8px" }}>
-                    <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>Artículos violados:</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                  <div style={{ marginTop: "12px" }}>
+                    <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "6px", fontWeight: "600" }}>
+                      ARTÍCULOS APLICABLES:
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                       {dictamen.conductor_a.articulos_violados.map((art, i) => (
                         <span key={i} style={{
-                          padding: "2px 8px",
+                          padding: "4px 10px",
                           backgroundColor: "#ffffff",
-                          borderRadius: "4px",
-                          fontSize: "11px",
-                          color: "#dc2626"
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          color: "#7c3aed",
+                          fontWeight: "500",
+                          border: "1px solid #e9d5ff"
                         }}>
                           {art}
                         </span>
@@ -370,21 +359,22 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
                 )}
               </div>
 
-              {/* Conductor B */}
+              {/* Conductor B - Tercero */}
               <div style={{
                 padding: "16px",
-                backgroundColor: "#eff6ff",
+                backgroundColor: dictamen.conductor_b?.porcentaje_culpa > 50 ? "#fef2f2" : "#f0fdf4",
                 borderRadius: "10px",
-                marginBottom: "16px"
+                marginBottom: "16px",
+                border: `1px solid ${dictamen.conductor_b?.porcentaje_culpa > 50 ? "#fecaca" : "#bbf7d0"}`
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "8px" }}>
-                  <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "#2563eb" }}>
-                    🚙 Conductor B
+                  <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
+                    🚙 Tercero
                   </h3>
                   <span style={{
-                    fontSize: "24px",
+                    fontSize: "28px",
                     fontWeight: "700",
-                    color: "#2563eb"
+                    color: dictamen.conductor_b?.porcentaje_culpa > 50 ? "#dc2626" : "#16a34a"
                   }}>
                     {dictamen.conductor_b?.porcentaje_culpa || 0}%
                   </span>
@@ -394,7 +384,7 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
                 </p>
                 {dictamen.conductor_b?.infracciones?.length > 0 && (
                   <div style={{ marginTop: "8px" }}>
-                    <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>Infracciones:</div>
+                    <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>Observaciones:</div>
                     <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#475569" }}>
                       {dictamen.conductor_b.infracciones.map((inf, i) => (
                         <li key={i}>{inf}</li>
@@ -409,7 +399,8 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
                 padding: "16px",
                 backgroundColor: "#f8fafc",
                 borderRadius: "10px",
-                marginBottom: "20px"
+                marginBottom: "20px",
+                border: "1px solid #e2e8f0"
               }}>
                 <h3 style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
                   📝 Conclusión
@@ -423,7 +414,7 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
               <div style={{ display: "flex", gap: "12px" }}>
                 <button
                   onClick={() => {
-                    alert("✅ Dictamen aprobado y guardado");
+                    alert(`✅ Dictamen aprobado para siniestro #${siniestro?.numero}\n\nAsegurado: ${dictamen.conductor_a?.porcentaje_culpa}% culpa\nTercero: ${dictamen.conductor_b?.porcentaje_culpa}% culpa\n\n${dictamen.recomendacion}`);
                     onVolver();
                   }}
                   style={{
@@ -438,7 +429,7 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
                     cursor: "pointer"
                   }}
                 >
-                  ✓ Aprobar
+                  ✓ Aprobar Dictamen
                 </button>
                 <button
                   onClick={() => setDictamen(null)}
@@ -454,20 +445,13 @@ Solo respondé con el JSON, sin texto adicional ni markdown.`
                     cursor: "pointer"
                   }}
                 >
-                  ✎ Modificar
+                  ✎ Volver a Analizar
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }
