@@ -1,331 +1,395 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
 
-// ─── IDs REALES de Google Drive ───────────────────────────────────────────────
-const DRIVE = {
-  cias: {
-    "Integrity Seguros": { id:"1GCNODjvlybIQrpS_Yo0VonUhK0ZXmYPg", color:"#5b21b6", bg:"#ede9fe" },
-    "San Cristóbal":     { id:"1bP7w-E8mLev8Hk_iNteUj81ItZn1XrnE", color:"#0369a1", bg:"#e0f2fe" },
-    "MAPFRE":            { id:"195un4KFUQCc8R0vW4q39cJPmVqpeEbdV",  color:"#b91c1c", bg:"#fee2e2" },
-    "Provincia Seguros": { id:"1dwwXmf9HMc0sL7tHjBKnxomdv3zCUs6D",  color:"#166534", bg:"#dcfce7" },
-    "Galeno":            { id:"19EKUH6T9L71WkEJGp9lvH6kQnwczja1Q",  color:"#92400e", bg:"#fef3c7" },
-  },
-};
-
-const ETAPAS = [
-  { id:"recepcion",     label:"Recepción",     icon:"📥", color:"#374151" },
-  { id:"analisis",      label:"Análisis",      icon:"⚖️", color:"#5b21b6" },
-  { id:"informe",       label:"Informe",       icon:"📋", color:"#1e40af" },
-  { id:"oferta",        label:"Oferta",        icon:"💬", color:"#0369a1" },
-  { id:"convenio",      label:"Convenio",      icon:"📝", color:"#166534" },
-  { id:"documentacion", label:"Documentación", icon:"📂", color:"#92400e" },
-  { id:"cierre",        label:"Cierre",        icon:"✅", color:"#14532d" },
+// DATOS REALES DE GOOGLE DRIVE - Actualizado 14/04/2026
+const SINIESTROS_REALES = [
+  // INTEGRITY - 50 siniestros reales
+  { id: "1NsMIfTHlU9-rDaUz2S6OJqui1d7yXIBQ", numero: "493699", estado: "02F", cia: "INTEGRITY", fecha: "2026-04-12", url: "https://drive.google.com/drive/folders/1NsMIfTHlU9-rDaUz2S6OJqui1d7yXIBQ" },
+  { id: "1tuZeHN7ILstnr_PKRpOVNFLLJ0tnngRw", numero: "495517", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-04-10", url: "https://drive.google.com/drive/folders/1tuZeHN7ILstnr_PKRpOVNFLLJ0tnngRw" },
+  { id: "15z2xfsh2VjwXj3rhosI8XSlg2DPVXZC4", numero: "495644", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-04-10", url: "https://drive.google.com/drive/folders/15z2xfsh2VjwXj3rhosI8XSlg2DPVXZC4" },
+  { id: "1DzaMHTN39Uv58K-rJvNlqrsN9ikf-vvP", numero: "494570", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-04-10", url: "https://drive.google.com/drive/folders/1DzaMHTN39Uv58K-rJvNlqrsN9ikf-vvP" },
+  { id: "1OXl-wyUv68TbmwucHki78N2TM3unWY1v", numero: "494915", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-04-10", url: "https://drive.google.com/drive/folders/1OXl-wyUv68TbmwucHki78N2TM3unWY1v" },
+  { id: "1OzleB5doQI5dVpgY4KZSwjjxG2EtL-8R", numero: "495462", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-04-10", url: "https://drive.google.com/drive/folders/1OzleB5doQI5dVpgY4KZSwjjxG2EtL-8R" },
+  { id: "1dktTGghOUxmdHy7pMGp9RddtJFo3_wXx", numero: "495934", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-04-08", url: "https://drive.google.com/drive/folders/1dktTGghOUxmdHy7pMGp9RddtJFo3_wXx" },
+  { id: "1GRyCloWxm23kbXuzSoVT6cKVkUwGRdAE", numero: "494934", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-04-08", url: "https://drive.google.com/drive/folders/1GRyCloWxm23kbXuzSoVT6cKVkUwGRdAE" },
+  { id: "1GKz-dHRGvMgVxUqJ-_et8mSurKkLUfYU", numero: "495114", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-04-06", url: "https://drive.google.com/drive/folders/1GKz-dHRGvMgVxUqJ-_et8mSurKkLUfYU" },
+  { id: "1VoQs1z2EJ7a7-Mn8DKCU2qcRZVBAVH_x", numero: "495850", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-04-06", url: "https://drive.google.com/drive/folders/1VoQs1z2EJ7a7-Mn8DKCU2qcRZVBAVH_x" },
+  { id: "1mvfJDGdrVzsJ8q_i1O9PeucwqilMkg6W", numero: "494794", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-04-03", url: "https://drive.google.com/drive/folders/1mvfJDGdrVzsJ8q_i1O9PeucwqilMkg6W" },
+  { id: "1JwN32y6TX9tKm-owIXArZKdnZP3HLnZp", numero: "494681", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-31", url: "https://drive.google.com/drive/folders/1JwN32y6TX9tKm-owIXArZKdnZP3HLnZp" },
+  { id: "1ufFuFmj0aIMsVXU65--W3O8GWmCwQsyK", numero: "495113", estado: "01F", cia: "INTEGRITY", fecha: "2026-03-06", url: "https://drive.google.com/drive/folders/1ufFuFmj0aIMsVXU65--W3O8GWmCwQsyK" },
+  { id: "1vuyMnbY_ul8K1_WzHpa7fKew02bjH7Eu", numero: "494622", estado: "TERC", cia: "INTEGRITY", fecha: "2026-03-06", url: "https://drive.google.com/drive/folders/1vuyMnbY_ul8K1_WzHpa7fKew02bjH7Eu" },
+  { id: "1dlmUzcI4kqj3pSIAb7XnJjOT6X8GMjpH", numero: "495726", estado: "01F", cia: "INTEGRITY", fecha: "2026-03-28", url: "https://drive.google.com/drive/folders/1dlmUzcI4kqj3pSIAb7XnJjOT6X8GMjpH" },
+  { id: "15XaQdAce5sOQGy1_tpCj159HcEGxtqOC", numero: "492384", estado: "01F", cia: "INTEGRITY", fecha: "2026-03-28", url: "https://drive.google.com/drive/folders/15XaQdAce5sOQGy1_tpCj159HcEGxtqOC" },
+  { id: "1skKTVBkiMEewUjQpkcCfA4MmG53rBNVb", numero: "493283", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-27", url: "https://drive.google.com/drive/folders/1skKTVBkiMEewUjQpkcCfA4MmG53rBNVb" },
+  { id: "1DvJuGQZCVzFWOY-RBKhpej4-fUnad1QI", numero: "495049", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-26", url: "https://drive.google.com/drive/folders/1DvJuGQZCVzFWOY-RBKhpej4-fUnad1QI" },
+  { id: "1kA33E3jEKI8Pk86T7Q6wqskRiXxEYc-2", numero: "494864", estado: "01F", cia: "INTEGRITY", fecha: "2026-03-21", url: "https://drive.google.com/drive/folders/1kA33E3jEKI8Pk86T7Q6wqskRiXxEYc-2" },
+  { id: "1aaYZruerGrdEulbtXPajMMakWopSX3MQ", numero: "494712", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-20", url: "https://drive.google.com/drive/folders/1aaYZruerGrdEulbtXPajMMakWopSX3MQ" },
+  { id: "1t93tw-w7_hrmQpdHf-dJA-tgo3m1uaMH", numero: "493607", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-20", url: "https://drive.google.com/drive/folders/1t93tw-w7_hrmQpdHf-dJA-tgo3m1uaMH" },
+  { id: "1PMvHMLk9qDwZd0uQ5BwPYA5rzPn9HL_z", numero: "494760", estado: "01F", cia: "INTEGRITY", fecha: "2026-03-19", url: "https://drive.google.com/drive/folders/1PMvHMLk9qDwZd0uQ5BwPYA5rzPn9HL_z" },
+  { id: "1FELietClmmwgLlcvPMJDZwUB2_HsgSaO", numero: "493298", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-17", url: "https://drive.google.com/drive/folders/1FELietClmmwgLlcvPMJDZwUB2_HsgSaO" },
+  { id: "1g3CU-cMRrY-QGPeah3c3n2MJAwKD0dsL", numero: "495111", estado: "01F", cia: "INTEGRITY", fecha: "2026-03-16", url: "https://drive.google.com/drive/folders/1g3CU-cMRrY-QGPeah3c3n2MJAwKD0dsL" },
+  { id: "1_3NjPKpHbtu74f3CMhh7ovPqy0OphGfX", numero: "493251", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-13", url: "https://drive.google.com/drive/folders/1_3NjPKpHbtu74f3CMhh7ovPqy0OphGfX" },
+  { id: "1PVpJfv0Tq6nyMv8kUW5EIuMy8DllXIA3", numero: "492684", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-12", url: "https://drive.google.com/drive/folders/1PVpJfv0Tq6nyMv8kUW5EIuMy8DllXIA3" },
+  { id: "1qpdafQ0bfdYI4ntPBkEkNVVlZ2xW8IiK", numero: "494257", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-12", url: "https://drive.google.com/drive/folders/1qpdafQ0bfdYI4ntPBkEkNVVlZ2xW8IiK" },
+  { id: "1Kdk5uo3tNnA_iFQ-Rp5IRS4Kk79BRR33", numero: "494937", estado: "01F", cia: "INTEGRITY", fecha: "2026-03-11", url: "https://drive.google.com/drive/folders/1Kdk5uo3tNnA_iFQ-Rp5IRS4Kk79BRR33" },
+  { id: "1vYjQwqyOxK0bMw2SzR18BrowSYs3OHxi", numero: "494565", estado: "02F", cia: "INTEGRITY", fecha: "2026-03-11", url: "https://drive.google.com/drive/folders/1vYjQwqyOxK0bMw2SzR18BrowSYs3OHxi" },
+  { id: "1aJ-o3lCsEDEW8r3brAwbSzn3gbE2-tPl", numero: "495019", estado: "01F", cia: "INTEGRITY", fecha: "2026-03-09", url: "https://drive.google.com/drive/folders/1aJ-o3lCsEDEW8r3brAwbSzn3gbE2-tPl" },
+  { id: "152-kikX4h3N7y9Jg9GEc0yEwX8QOa7OC", numero: "494366", estado: "CITROEN", cia: "INTEGRITY", fecha: "2026-03-06", url: "https://drive.google.com/drive/folders/152-kikX4h3N7y9Jg9GEc0yEwX8QOa7OC" },
+  { id: "13S8lc-vQfbLrxG4EvvHwG4F4OdmvyRub", numero: "494366", estado: "FIAT SIENA", cia: "INTEGRITY", fecha: "2026-03-06", url: "https://drive.google.com/drive/folders/13S8lc-vQfbLrxG4EvvHwG4F4OdmvyRub" },
+  { id: "1zKiCMdQ94hbW9MSwMZKuHYhLe3O0Jf6Q", numero: "494884", estado: "01F", cia: "INTEGRITY", fecha: "2026-03-06", url: "https://drive.google.com/drive/folders/1zKiCMdQ94hbW9MSwMZKuHYhLe3O0Jf6Q" },
+  { id: "1idfmk8kiZyUftqJagv1ax-Ll11WqYPEj", numero: "494810", estado: "01F", cia: "INTEGRITY", fecha: "2026-03-06", url: "https://drive.google.com/drive/folders/1idfmk8kiZyUftqJagv1ax-Ll11WqYPEj" },
+  { id: "1IoVDoxC7jS11T7UCUZ-4RxKZ2c2LOfQS", numero: "494926", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-06", url: "https://drive.google.com/drive/folders/1IoVDoxC7jS11T7UCUZ-4RxKZ2c2LOfQS" },
+  { id: "15nb8XRWsHhqQRuUF9T5iUWiZCPooxKFy", numero: "493297", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-05", url: "https://drive.google.com/drive/folders/15nb8XRWsHhqQRuUF9T5iUWiZCPooxKFy" },
+  { id: "1dqJaTyjgH5bG0V3--A0ZDGEGmi1RAjhi", numero: "494023", estado: "TERC", cia: "INTEGRITY", fecha: "2026-03-04", url: "https://drive.google.com/drive/folders/1dqJaTyjgH5bG0V3--A0ZDGEGmi1RAjhi" },
+  { id: "1Z8JsIIU5My8r_wNuygkxHe-Vp9isR764", numero: "494762", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-03", url: "https://drive.google.com/drive/folders/1Z8JsIIU5My8r_wNuygkxHe-Vp9isR764" },
+  { id: "1x5MONVibri3F4FBQiyPwNDq3pm60IWc_", numero: "494568", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-03", url: "https://drive.google.com/drive/folders/1x5MONVibri3F4FBQiyPwNDq3pm60IWc_" },
+  { id: "1C9Wj27qj6Mu5VAYonc08lPbG1ZrNPI1y", numero: "494548", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-03-03", url: "https://drive.google.com/drive/folders/1C9Wj27qj6Mu5VAYonc08lPbG1ZrNPI1y" },
+  { id: "1ELu7VjIO21PcAhXXGa5evPswtBQZlosw", numero: "494861", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-02-27", url: "https://drive.google.com/drive/folders/1ELu7VjIO21PcAhXXGa5evPswtBQZlosw" },
+  { id: "1v8cMOnOjmwzcy8OEZJhSUMlTMBbIfzRn", numero: "493761", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-02-27", url: "https://drive.google.com/drive/folders/1v8cMOnOjmwzcy8OEZJhSUMlTMBbIfzRn" },
+  { id: "1-EIVFeDmnrjCGIGhiKFWI5EXEJvp3DJi", numero: "494535", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-02-27", url: "https://drive.google.com/drive/folders/1-EIVFeDmnrjCGIGhiKFWI5EXEJvp3DJi" },
+  { id: "1vJ5L8RxcbK_MfzJGtyIbT77R9tWxi7qZ", numero: "494403", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-02-26", url: "https://drive.google.com/drive/folders/1vJ5L8RxcbK_MfzJGtyIbT77R9tWxi7qZ" },
+  { id: "1tgBhLAwmuJXE54446nRTWGYuO9NV6jrM", numero: "494622", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-02-25", url: "https://drive.google.com/drive/folders/1tgBhLAwmuJXE54446nRTWGYuO9NV6jrM" },
+  { id: "1dTk5szgXxTT10vGu80snDTJ7rTJRaxCE", numero: "494627", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-02-24", url: "https://drive.google.com/drive/folders/1dTk5szgXxTT10vGu80snDTJ7rTJRaxCE" },
+  { id: "1xACnTg4QjDz_JaDFtsNe-3otyCM8Xysv", numero: "494540", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-02-23", url: "https://drive.google.com/drive/folders/1xACnTg4QjDz_JaDFtsNe-3otyCM8Xysv" },
+  { id: "1gR1_AfmX0VeEqQ24EWck6vpmpuRp7WE4", numero: "494309", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-02-23", url: "https://drive.google.com/drive/folders/1gR1_AfmX0VeEqQ24EWck6vpmpuRp7WE4" },
+  { id: "13Ezd0PBxHQATsOo8gFEZKykruexyjZ-K", numero: "494551", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-02-23", url: "https://drive.google.com/drive/folders/13Ezd0PBxHQATsOo8gFEZKykruexyjZ-K" },
+  { id: "1xaJBru47Jh3Bgzlf-P18E5a6uVI0wmzG", numero: "493238", estado: "RECEPCION", cia: "INTEGRITY", fecha: "2026-02-19", url: "https://drive.google.com/drive/folders/1xaJBru47Jh3Bgzlf-P18E5a6uVI0wmzG" },
 ];
 
-const PRIO_C  = { alta:"#dc2626", media:"#d97706", baja:"#16a34a" };
-const CIAS_LIST = Object.keys(DRIVE.cias);
-const AGENTE_URL = "https://agente-siniestros-production.up.railway.app";
-
-const G = {
-  fondo:"#f5f7fa", fondoCard:"#ffffff", borde:"#d1d9e0",
-  texto:"#111827", textoSec:"#374151", textoTer:"#6b7280",
-  input:{ background:"#fff", border:"1px solid #d1d9e0", borderRadius:8, color:"#111827", fontSize:16, padding:"10px 14px", fontFamily:"inherit", width:"100%" },
+const COMPANIAS = {
+  INTEGRITY: { color: "#7c3aed", nombre: "Integrity Seguros" },
+  GALENO: { color: "#00a651", nombre: "Galeno" },
+  MAPFRE: { color: "#dc2626", nombre: "Mapfre" },
+  PROVINCIA: { color: "#2563eb", nombre: "Provincia Seguros" },
+  SAN_CRISTOBAL: { color: "#ea580c", nombre: "San Cristóbal" },
 };
 
-// ─── Detectar etapa por nombre de carpeta ─────────────────────────────────────
-function detectarEtapa(nombre) {
-  const n = nombre.toUpperCase();
-  if (n.includes("CERRAD") || n.includes("PAGAD")) return "cierre";
-  if (n.includes("CONVEN")) return "convenio";
-  if (n.includes("TERC") || n.includes("OFERT")) return "oferta";
-  if (n.includes("INF") || n.includes("01F") || n.includes("02F") || n.includes("03F")) return "informe";
-  return "recepcion";
-}
+const ESTADOS = {
+  "RECEPCION": { color: "#64748b", label: "Recepción", icon: "📥" },
+  "01F": { color: "#f59e0b", label: "Informe", icon: "📋" },
+  "02F": { color: "#10b981", label: "Cerrado", icon: "✅" },
+  "TERC": { color: "#8b5cf6", label: "Tercero", icon: "👥" },
+};
 
-// ─── Llamar al agente ─────────────────────────────────────────────────────────
-async function llamarAgente(tarea, siniestro_id, cia, datos={}) {
-  try {
-    const res = await fetch(AGENTE_URL+"/ejecutar", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({siniestro_id, cia, tarea, datos})
-    });
-    return await res.json();
-  } catch(e) { return {ok:false, mensaje:e.message}; }
-}
-
-// ─── Leer carpetas de Drive via Claude API ────────────────────────────────────
-async function leerCarpetasCIA(ciaName, folderId) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method:"POST",
-    headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body: JSON.stringify({
-      model:"claude-sonnet-4-5", max_tokens:3000,
-      system:"Sos un agente de Google Drive. Respondé SOLO con JSON válido sin explicaciones ni backticks.",
-      mcp_servers:[{type:"url",url:"https://drivemcp.googleapis.com/mcp/v1",name:"gdrive"}],
-      messages:[{role:"user",content:`Listá TODAS las subcarpetas dentro de la carpeta con ID "${folderId}". 
-Excluí carpetas que empiecen con ZZ o ZZCONVENIOS.
-Retorná SOLO este JSON (sin texto extra): [{"nombre":"...","id":"...","url":"..."}]
-Si no hay subcarpetas retorná: []`}],
-    }),
-  });
-  const data = await res.json();
-  const texto = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-  const match = texto.match(/\[[\s\S]*?\]/);
-  if(!match) return [];
-  try {
-    const carpetas = JSON.parse(match[0]);
-    return carpetas.map(c=>({
-      id: c.nombre || c.id,
-      cia: ciaName,
-      asegurado: c.nombre || "",
-      tipo: "Choque",
-      vehiculo: "",
-      telefono: "",
-      agente: "Gianoglio",
-      prioridad: "media",
-      fecha_ingreso: "",
-      etapa: detectarEtapa(c.nombre || ""),
-      folder_id: c.id,
-      url_drive: c.url || `https://drive.google.com/drive/folders/${c.id}`,
-      tareas: [],
-      log: [],
-    }));
-  } catch { return []; }
+function calcularDias(fecha) {
+  const hoy = new Date();
+  const fechaStro = new Date(fecha);
+  const diff = Math.floor((hoy - fechaStro) / (1000 * 60 * 60 * 24));
+  return diff;
 }
 
 export default function AgendaSiniestros() {
-  const [siniestros,   setSiniestros]   = useState([]);
-  const [cargando,     setCargando]     = useState(true);
-  const [ciasCargando, setCiasCargando] = useState({});
-  const [error,        setError]        = useState(null);
-  const [filtro,       setFiltro]       = useState("todos");
-  const [vista,        setVista]        = useState("agenda");
+  const [filtroCompania, setFiltroCompania] = useState("TODAS");
+  const [filtroEstado, setFiltroEstado] = useState("TODOS");
+  const [busqueda, setBusqueda] = useState("");
   const [seleccionado, setSeleccionado] = useState(null);
-  const [guardando,    setGuardando]    = useState(false);
-  const [notif,        setNotif]        = useState(null);
-  const [formNuevo,    setFormNuevo]    = useState({
-    cia:"Integrity Seguros", tipo:"Choque", asegurado:"", vehiculo:"",
-    telefono:"", agente:"", prioridad:"media",
-    fecha_ingreso:new Date().toLocaleDateString("es-AR"),
-  });
 
-  const showNotif = (msg, tipo="ok") => { setNotif({msg,tipo}); setTimeout(()=>setNotif(null),4000); };
+  const siniestrosFiltrados = useMemo(() => {
+    return SINIESTROS_REALES.filter(s => {
+      const matchCia = filtroCompania === "TODAS" || s.cia === filtroCompania;
+      const matchEstado = filtroEstado === "TODOS" || s.estado === filtroEstado;
+      const matchBusqueda = !busqueda || s.numero.includes(busqueda);
+      return matchCia && matchEstado && matchBusqueda;
+    });
+  }, [filtroCompania, filtroEstado, busqueda]);
 
-  const cargar = useCallback(async()=>{
-    setCargando(true); setError(null); setSiniestros([]);
-    try {
-      const todos = [];
-      for(const [cia, info] of Object.entries(DRIVE.cias)) {
-        setCiasCargando(p=>({...p,[cia]:true}));
-        try {
-          const stros = await leerCarpetasCIA(cia, info.id);
-          todos.push(...stros);
-          setSiniestros(prev=>[...prev,...stros]);
-        } catch(e) { console.error(`Error cargando ${cia}:`, e); }
-        setCiasCargando(p=>({...p,[cia]:false}));
-      }
-    } catch(e) { setError(e.message); }
-    finally { setCargando(false); }
-  },[]);
-
-  useEffect(()=>{ cargar(); },[]);
-
-  const filtrados = filtro==="todos" ? siniestros : siniestros.filter(s=>s.cia===filtro);
-  const etapaDe   = s => ETAPAS.find(e=>e.id===s.etapa)||ETAPAS[0];
-  const etapaIdx  = s => ETAPAS.findIndex(e=>e.id===s.etapa);
-  const CI = name => DRIVE.cias[name]||{color:"#374151",bg:"#f3f4f6"};
-
-  const cambiarEtapa = async(s, nuevaEtapa) => {
-    const actualizado = {...s, etapa:nuevaEtapa.id};
-    setSiniestros(prev=>prev.map(x=>x.folder_id===s.folder_id?actualizado:x));
-    if(seleccionado?.folder_id===s.folder_id) setSeleccionado(actualizado);
-    showNotif(`📊 ${s.id} → ${nuevaEtapa.label}`);
-  };
+  const contadores = useMemo(() => {
+    const porEstado = {};
+    SINIESTROS_REALES.forEach(s => {
+      porEstado[s.estado] = (porEstado[s.estado] || 0) + 1;
+    });
+    return porEstado;
+  }, []);
 
   return (
-    <div style={{fontFamily:"'Segoe UI',Arial,sans-serif",background:G.fondo,minHeight:"100vh",color:G.texto,fontSize:16}}>
-      <style>{`
-        *{box-sizing:border-box}
-        .card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.12)!important}
-        .btn:hover{filter:brightness(.93)}
-        .fade{animation:fi .3s ease}
-        @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-        .spin{animation:sp 1s linear infinite;display:inline-block}
-        @keyframes sp{to{transform:rotate(360deg)}}
-        input:focus,select:focus{outline:3px solid #5b21b6!important}
-      `}</style>
-
-      {notif&&<div className="fade" style={{position:"fixed",top:18,right:18,zIndex:9999,background:notif.tipo==="ok"?"#166534":"#991b1b",color:"#fff",padding:"14px 22px",borderRadius:10,fontSize:16,fontWeight:"bold",boxShadow:"0 4px 20px rgba(0,0,0,.2)"}}>{notif.msg}</div>}
-
-      {/* HEADER */}
-      <div style={{background:"#1e293b",padding:"14px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          {vista!=="agenda"&&<button onClick={()=>setVista("agenda")} style={{background:"#334155",border:"none",color:"#e2e8f0",padding:"8px 16px",borderRadius:8,cursor:"pointer",fontSize:15}}>← Volver</button>}
-          <span style={{fontSize:22,fontWeight:"bold",color:"#f8fafc",letterSpacing:1}}>⚡ GIANOGLIO PERITACIONES</span>
-        </div>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          {Object.entries(ciasCargando).filter(([,v])=>v).map(([k])=>(
-            <span key={k} style={{color:"#93c5fd",fontSize:13}}><span className="spin">⟳</span> {k}...</span>
-          ))}
-          <button className="btn" onClick={cargar} disabled={cargando} style={{padding:"8px 16px",background:"#334155",border:"none",color:"#e2e8f0",borderRadius:8,cursor:"pointer",fontSize:15}}>🔄 Actualizar</button>
-          {vista==="agenda"&&<button className="btn" onClick={()=>setVista("nuevo")} style={{padding:"9px 20px",background:"#5b21b6",border:"none",color:"#fff",borderRadius:8,cursor:"pointer",fontSize:16,fontWeight:"bold"}}>+ Nuevo</button>}
-        </div>
-      </div>
-
-      {/* AGENDA */}
-      {vista==="agenda"&&(
-        <div style={{padding:"20px 24px"}}>
-          {/* Filtros */}
-          <div style={{display:"flex",gap:10,marginBottom:16,flexWrap:"wrap"}}>
-            {["todos",...CIAS_LIST].map(c=>{
-              const ci=CI(c); const activo=filtro===c;
-              return <button key={c} onClick={()=>setFiltro(c)} style={{padding:"8px 18px",borderRadius:20,border:`2px solid ${activo?ci.color:"#d1d9e0"}`,cursor:"pointer",fontSize:15,fontWeight:"bold",background:activo?ci.bg:"#fff",color:activo?ci.color:G.textoSec,transition:"all .2s"}}>{c==="todos"?"📋 TODOS":c.toUpperCase()}</button>;
-            })}
+    <div style={{ 
+      minHeight: "100vh", 
+      background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      color: "#e2e8f0",
+      padding: "20px"
+    }}>
+      {/* Header */}
+      <div style={{ 
+        background: "rgba(30, 41, 59, 0.8)", 
+        borderRadius: "16px", 
+        padding: "24px",
+        marginBottom: "20px",
+        backdropFilter: "blur(10px)",
+        border: "1px solid rgba(148, 163, 184, 0.1)"
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+          <div>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", margin: 0, background: "linear-gradient(90deg, #818cf8, #c084fc)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              📋 Agenda de Siniestros
+            </h1>
+            <p style={{ color: "#94a3b8", margin: "8px 0 0", fontSize: "14px" }}>
+              {SINIESTROS_REALES.length} siniestros en total • Datos reales de Google Drive
+            </p>
           </div>
-
-          {/* Pipeline */}
-          <div style={{display:"flex",gap:8,marginBottom:16,overflowX:"auto",paddingBottom:4}}>
-            {ETAPAS.map(e=>{
-              const n=filtrados.filter(s=>s.etapa===e.id).length;
-              return <div key={e.id} style={{flex:"0 0 auto",textAlign:"center",padding:"10px 14px",background:"#fff",borderRadius:10,minWidth:110,border:`1px solid ${e.color}`,boxShadow:"0 2px 6px rgba(0,0,0,.06)"}}>
-                <div style={{fontSize:20}}>{e.icon}</div>
-                <div style={{fontSize:13,color:G.textoTer,fontWeight:"bold",marginTop:2}}>{e.label}</div>
-                <div style={{fontSize:26,fontWeight:"bold",color:e.color}}>{n}</div>
-              </div>;
-            })}
-          </div>
-
-          {error&&<div style={{padding:"16px",background:"#fee2e2",border:"2px solid #dc2626",borderRadius:10,color:"#7f1d1d",fontSize:16,marginBottom:12}}>⚠ {error}</div>}
-
-          {cargando&&siniestros.length===0&&(
-            <div style={{textAlign:"center",padding:"50px",color:G.textoSec}}>
-              <div style={{fontSize:40,marginBottom:12}}><span className="spin">⟳</span></div>
-              <div style={{fontSize:17}}>Cargando siniestros desde Google Drive...</div>
-              <div style={{fontSize:14,color:G.textoTer,marginTop:8}}>Esto puede tardar unos segundos</div>
-            </div>
-          )}
-
-          {/* Lista siniestros */}
-          <div style={{display:"grid",gap:10}}>
-            {filtrados.length===0&&!cargando&&<div style={{textAlign:"center",padding:"50px",color:G.textoTer,fontSize:17}}><div style={{fontSize:40,marginBottom:12}}>📂</div>No hay siniestros.</div>}
-            {filtrados.map(s=>{
-              const ci=CI(s.cia); const et=etapaDe(s); const ei=etapaIdx(s);
-              return <div key={s.folder_id} className="card" onClick={()=>{setSeleccionado(s);setVista("detalle")}} style={{background:"#fff",border:"1px solid "+G.borde,borderRadius:12,padding:"14px 18px",cursor:"pointer",transition:"all .2s",borderLeft:`5px solid ${et.color}`,display:"grid",gridTemplateColumns:"1fr 180px 180px auto",alignItems:"center",gap:14,boxShadow:"0 2px 8px rgba(0,0,0,.05)"}}>
-                <div>
-                  <div style={{display:"flex",gap:8,marginBottom:6}}>
-                    <span style={{background:ci.bg,color:ci.color,fontSize:13,padding:"3px 10px",borderRadius:10,fontWeight:"bold"}}>{s.cia}</span>
-                    <span style={{background:PRIO_C[s.prioridad]+"22",color:PRIO_C[s.prioridad],fontSize:13,padding:"3px 10px",borderRadius:10,fontWeight:"bold"}}>● {(s.prioridad||"media").toUpperCase()}</span>
-                  </div>
-                  <div style={{fontWeight:"bold",fontSize:18,color:G.texto}}>{s.id}</div>
-                  <div style={{color:G.textoTer,fontSize:14,marginTop:2}}>{s.asegurado}</div>
-                </div>
-                <div>
-                  <span style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:16,fontSize:15,fontWeight:"bold",background:et.color+"18",color:et.color,border:`1px solid ${et.color}`}}>{et.icon} {et.label}</span>
-                  <div style={{display:"flex",gap:2,marginTop:8}}>{ETAPAS.map((e,i)=><div key={e.id} style={{flex:1,height:4,borderRadius:2,background:i<=ei?et.color:"#e5e7eb"}}/>)}</div>
-                </div>
-                <div>
-                  <div style={{fontSize:13,color:G.textoTer,marginBottom:6,fontWeight:"bold"}}>CAMBIAR ETAPA</div>
-                  <select onClick={e=>e.stopPropagation()} onChange={e=>{const et2=ETAPAS.find(x=>x.id===e.target.value);if(et2)cambiarEtapa(s,et2)}} value={s.etapa} style={{...G.input,fontSize:14,padding:"6px 10px"}}>
-                    {ETAPAS.map(e=><option key={e.id} value={e.id}>{e.icon} {e.label}</option>)}
-                  </select>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  {s.url_drive&&<a href={s.url_drive} target="_blank" rel="noreferrer" onClick={e=>e.stopPropagation()} style={{fontSize:14,color:"#166534",textDecoration:"none",fontWeight:"bold",display:"block",marginBottom:4}}>📁 Abrir</a>}
-                  <div style={{fontSize:13,color:"#5b21b6",fontWeight:"bold"}}>{s.agente}</div>
-                </div>
-              </div>;
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* NUEVO SINIESTRO */}
-      {vista==="nuevo"&&(
-        <div className="fade" style={{padding:"28px",maxWidth:700,margin:"0 auto"}}>
-          <div style={{fontSize:20,fontWeight:"bold",color:G.texto,marginBottom:20}}>📥 Nuevo Siniestro</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-            {[
-              {l:"COMPAÑÍA",k:"cia",t:"select",ops:CIAS_LIST},
-              {l:"TIPO",k:"tipo",t:"select",ops:["Choque","Granizo","Robo Parcial","Robo Total","Incendio","Daño Parcial","Atropello","Otro"]},
-              {l:"N° SINIESTRO *",k:"asegurado",t:"input"},{l:"VEHÍCULO",k:"vehiculo",t:"input"},
-              {l:"TELÉFONO TERCERO",k:"telefono",t:"input"},{l:"ASEGURADO",k:"agente",t:"input"},
-              {l:"PRIORIDAD",k:"prioridad",t:"select",ops:["alta","media","baja"]},
-              {l:"FECHA",k:"fecha_ingreso",t:"input"},
-            ].map(f=>(
-              <div key={f.k}>
-                <div style={{fontSize:14,fontWeight:"bold",color:G.textoSec,marginBottom:6}}>{f.l}</div>
-                {f.t==="select"
-                  ?<select value={formNuevo[f.k]} onChange={e=>setFormNuevo(p=>({...p,[f.k]:e.target.value}))} style={{...G.input}}>{f.ops.map(o=><option key={o}>{o}</option>)}</select>
-                  :<input value={formNuevo[f.k]} onChange={e=>setFormNuevo(p=>({...p,[f.k]:e.target.value}))} style={{...G.input}}/>
-                }
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            {Object.entries(contadores).slice(0, 4).map(([estado, count]) => (
+              <div key={estado} style={{
+                background: `${ESTADOS[estado]?.color || "#64748b"}22`,
+                border: `1px solid ${ESTADOS[estado]?.color || "#64748b"}44`,
+                borderRadius: "8px",
+                padding: "8px 16px",
+                textAlign: "center"
+              }}>
+                <div style={{ fontSize: "20px", fontWeight: "700" }}>{count}</div>
+                <div style={{ fontSize: "11px", color: "#94a3b8" }}>{ESTADOS[estado]?.label || estado}</div>
               </div>
             ))}
           </div>
-          <div style={{display:"flex",gap:12,marginTop:20}}>
-            <button className="btn" onClick={()=>{showNotif("✅ Siniestro registrado en agenda");setVista("agenda");}} disabled={!formNuevo.asegurado.trim()} style={{flex:1,padding:"14px",background:formNuevo.asegurado.trim()?"#5b21b6":"#9ca3af",color:"#fff",border:"none",borderRadius:10,cursor:"pointer",fontSize:17,fontWeight:"bold"}}>
-              ✅ REGISTRAR EN AGENDA
-            </button>
-            <button onClick={()=>setVista("agenda")} style={{padding:"14px 20px",background:"#fff",color:G.textoSec,border:`2px solid ${G.borde}`,borderRadius:10,cursor:"pointer",fontSize:16}}>Cancelar</button>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div style={{ 
+        display: "flex", 
+        gap: "12px", 
+        marginBottom: "20px", 
+        flexWrap: "wrap" 
+      }}>
+        <input
+          type="text"
+          placeholder="🔍 Buscar N° siniestro..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          style={{
+            background: "rgba(30, 41, 59, 0.8)",
+            border: "1px solid rgba(148, 163, 184, 0.2)",
+            borderRadius: "10px",
+            padding: "12px 16px",
+            color: "#e2e8f0",
+            fontSize: "14px",
+            width: "200px",
+            outline: "none"
+          }}
+        />
+        <select
+          value={filtroCompania}
+          onChange={(e) => setFiltroCompania(e.target.value)}
+          style={{
+            background: "rgba(30, 41, 59, 0.8)",
+            border: "1px solid rgba(148, 163, 184, 0.2)",
+            borderRadius: "10px",
+            padding: "12px 16px",
+            color: "#e2e8f0",
+            fontSize: "14px",
+            cursor: "pointer"
+          }}
+        >
+          <option value="TODAS">Todas las compañías</option>
+          {Object.entries(COMPANIAS).map(([key, val]) => (
+            <option key={key} value={key}>{val.nombre}</option>
+          ))}
+        </select>
+        <select
+          value={filtroEstado}
+          onChange={(e) => setFiltroEstado(e.target.value)}
+          style={{
+            background: "rgba(30, 41, 59, 0.8)",
+            border: "1px solid rgba(148, 163, 184, 0.2)",
+            borderRadius: "10px",
+            padding: "12px 16px",
+            color: "#e2e8f0",
+            fontSize: "14px",
+            cursor: "pointer"
+          }}
+        >
+          <option value="TODOS">Todos los estados</option>
+          {Object.entries(ESTADOS).map(([key, val]) => (
+            <option key={key} value={key}>{val.icon} {val.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Grid de siniestros */}
+      <div style={{ display: "flex", gap: "20px" }}>
+        <div style={{ flex: seleccionado ? "0 0 60%" : "1", transition: "all 0.3s ease" }}>
+          <div style={{ 
+            display: "grid", 
+            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", 
+            gap: "12px" 
+          }}>
+            {siniestrosFiltrados.map((s) => {
+              const dias = calcularDias(s.fecha);
+              const estadoInfo = ESTADOS[s.estado] || ESTADOS["RECEPCION"];
+              const ciaInfo = COMPANIAS[s.cia];
+              const isSelected = seleccionado?.id === s.id;
+              
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => setSeleccionado(isSelected ? null : s)}
+                  style={{
+                    background: isSelected 
+                      ? `linear-gradient(135deg, ${ciaInfo.color}22 0%, ${ciaInfo.color}11 100%)`
+                      : "rgba(30, 41, 59, 0.6)",
+                    border: `2px solid ${isSelected ? ciaInfo.color : "rgba(148, 163, 184, 0.1)"}`,
+                    borderRadius: "12px",
+                    padding: "16px",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    position: "relative",
+                    overflow: "hidden"
+                  }}
+                >
+                  {/* Badge compañía */}
+                  <div style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    background: ciaInfo.color,
+                    color: "white",
+                    fontSize: "10px",
+                    fontWeight: "600",
+                    padding: "4px 10px",
+                    borderBottomLeftRadius: "8px"
+                  }}>
+                    {s.cia}
+                  </div>
+
+                  {/* Número */}
+                  <div style={{ fontSize: "22px", fontWeight: "700", color: "#f1f5f9", marginBottom: "8px" }}>
+                    #{s.numero}
+                  </div>
+
+                  {/* Estado */}
+                  <div style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: `${estadoInfo.color}22`,
+                    color: estadoInfo.color,
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    marginBottom: "12px"
+                  }}>
+                    {estadoInfo.icon} {estadoInfo.label}
+                  </div>
+
+                  {/* Info */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ color: "#94a3b8", fontSize: "12px" }}>
+                      📅 {new Date(s.fecha).toLocaleDateString('es-AR')}
+                    </div>
+                    <div style={{
+                      background: dias > 30 ? "#ef444422" : dias > 15 ? "#f59e0b22" : "#10b98122",
+                      color: dias > 30 ? "#ef4444" : dias > 15 ? "#f59e0b" : "#10b981",
+                      padding: "4px 8px",
+                      borderRadius: "6px",
+                      fontSize: "11px",
+                      fontWeight: "600"
+                    }}>
+                      {dias}d
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
-      )}
 
-      {/* DETALLE */}
-      {vista==="detalle"&&seleccionado&&(()=>{
-        const s=seleccionado; const ci=CI(s.cia); const et=etapaDe(s); const ei=etapaIdx(s);
-        return(
-          <div className="fade" style={{padding:"20px 24px",display:"grid",gridTemplateColumns:"1fr 300px",gap:18}}>
-            <div style={{display:"flex",flexDirection:"column",gap:14}}>
-              <div style={{background:"#fff",border:`1px solid ${G.borde}`,borderRadius:12,padding:"20px",borderLeft:`6px solid ${et.color}`,boxShadow:"0 2px 8px rgba(0,0,0,.06)"}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-                  <div>
-                    <div style={{display:"flex",gap:8,marginBottom:8}}>
-                      <span style={{background:ci.bg,color:ci.color,fontSize:14,padding:"4px 12px",borderRadius:10,fontWeight:"bold"}}>{s.cia}</span>
-                    </div>
-                    <div style={{fontSize:26,fontWeight:"bold",color:G.texto}}>{s.id}</div>
-                    <div style={{color:G.textoSec,fontSize:16}}>{s.asegurado}</div>
-                  </div>
-                  <span style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:16,fontSize:15,fontWeight:"bold",background:et.color+"18",color:et.color,border:`2px solid ${et.color}`}}>{et.icon} {et.label}</span>
-                </div>
-                <div style={{display:"flex",gap:2,borderRadius:8,overflow:"hidden"}}>
-                  {ETAPAS.map((e,i)=><div key={e.id} style={{flex:1,padding:"5px 2px",textAlign:"center",fontSize:12,background:i<ei?e.color+"33":i===ei?e.color:"#f3f4f6",color:i<=ei?i===ei?"#fff":e.color:"#9ca3af",fontWeight:i===ei?"bold":"normal",cursor:"pointer"}} onClick={()=>cambiarEtapa(s,e)}>{e.icon}</div>)}
-                </div>
-                <div style={{marginTop:10,fontSize:14,color:G.textoTer}}>Hacé clic en una etapa para avanzar</div>
+        {/* Panel derecho - Detalle */}
+        {seleccionado && (
+          <div style={{
+            flex: "0 0 38%",
+            background: "rgba(30, 41, 59, 0.9)",
+            borderRadius: "16px",
+            padding: "24px",
+            border: `2px solid ${COMPANIAS[seleccionado.cia].color}44`,
+            position: "sticky",
+            top: "20px",
+            height: "fit-content"
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "20px" }}>
+              <div>
+                <div style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "4px" }}>SINIESTRO</div>
+                <div style={{ fontSize: "32px", fontWeight: "700", color: "#f1f5f9" }}>#{seleccionado.numero}</div>
               </div>
-
-              {s.url_drive&&(
-                <a href={s.url_drive} target="_blank" rel="noreferrer" style={{display:"block",padding:"16px 20px",background:"#dcfce7",border:"2px solid #166534",borderRadius:12,color:"#166534",textDecoration:"none",fontSize:17,fontWeight:"bold",textAlign:"center"}}>
-                  📁 Abrir carpeta del siniestro en Drive →
-                </a>
-              )}
+              <button
+                onClick={() => setSeleccionado(null)}
+                style={{
+                  background: "rgba(239, 68, 68, 0.2)",
+                  border: "none",
+                  color: "#ef4444",
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "8px",
+                  cursor: "pointer",
+                  fontSize: "18px"
+                }}
+              >✕</button>
             </div>
 
-            <div style={{display:"flex",flexDirection:"column",gap:14}}>
-              <div style={{background:"#fff",border:`1px solid ${G.borde}`,borderRadius:10,padding:"14px",boxShadow:"0 2px 6px rgba(0,0,0,.06)"}}>
-                <div style={{fontSize:15,fontWeight:"bold",color:G.texto,marginBottom:10}}>⚡ ACCIONES</div>
-                {[
-                  {label:"🤖 Escanear Integrity",c:"#166534",bg:"#dcfce7",fn:()=>llamarAgente("escanear_nuevos","*","Integrity Seguros").then(r=>showNotif(r.mensaje||"Escaneando..."))},
-                  {label:"⚖️ Generar Dictamen IA",c:"#5b21b6",bg:"#ede9fe",fn:null},
-                  {label:"📲 WhatsApp tercero",c:"#0369a1",bg:"#e0f2fe",fn:null},
-                  {label:"📄 Ver documentos",c:"#1e40af",bg:"#dbeafe",fn:()=>s.url_drive&&window.open(s.url_drive,"_blank")},
-                ].map((a,i)=>(
-                  <button key={i} className="btn" onClick={()=>a.fn&&a.fn()} style={{width:"100%",marginBottom:8,padding:"10px 14px",background:a.bg,color:a.c,border:`2px solid ${a.c}`,borderRadius:8,cursor:"pointer",fontSize:15,fontWeight:"bold",textAlign:"left"}}>
-                    {a.label}
-                  </button>
-                ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ 
+                background: `${COMPANIAS[seleccionado.cia].color}22`,
+                padding: "16px",
+                borderRadius: "12px",
+                borderLeft: `4px solid ${COMPANIAS[seleccionado.cia].color}`
+              }}>
+                <div style={{ fontSize: "12px", color: "#94a3b8" }}>COMPAÑÍA</div>
+                <div style={{ fontSize: "18px", fontWeight: "600", color: COMPANIAS[seleccionado.cia].color }}>
+                  {COMPANIAS[seleccionado.cia].nombre}
+                </div>
               </div>
 
-              <div style={{background:"#fff",border:`1px solid ${G.borde}`,borderRadius:10,padding:"14px",boxShadow:"0 2px 6px rgba(0,0,0,.06)"}}>
-                <div style={{fontSize:15,fontWeight:"bold",color:G.texto,marginBottom:10}}>📊 CAMBIAR ETAPA</div>
-                {ETAPAS.map(e=>(
-                  <button key={e.id} className="btn" onClick={()=>cambiarEtapa(s,e)} style={{width:"100%",marginBottom:6,padding:"9px 12px",background:s.etapa===e.id?e.color+"22":"#f9fafb",color:s.etapa===e.id?e.color:G.textoSec,border:`2px solid ${s.etapa===e.id?e.color:"#e5e7eb"}`,borderRadius:8,cursor:"pointer",fontSize:15,fontWeight:s.etapa===e.id?"bold":"normal",textAlign:"left"}}>
-                    {e.icon} {e.label} {s.etapa===e.id?"◀ actual":""}
-                  </button>
-                ))}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div style={{ background: "rgba(148, 163, 184, 0.1)", padding: "12px", borderRadius: "10px" }}>
+                  <div style={{ fontSize: "11px", color: "#94a3b8" }}>ESTADO</div>
+                  <div style={{ fontSize: "16px", fontWeight: "600", color: ESTADOS[seleccionado.estado]?.color || "#64748b" }}>
+                    {ESTADOS[seleccionado.estado]?.icon} {ESTADOS[seleccionado.estado]?.label || seleccionado.estado}
+                  </div>
+                </div>
+                <div style={{ background: "rgba(148, 163, 184, 0.1)", padding: "12px", borderRadius: "10px" }}>
+                  <div style={{ fontSize: "11px", color: "#94a3b8" }}>DÍAS</div>
+                  <div style={{ fontSize: "16px", fontWeight: "600" }}>
+                    {calcularDias(seleccionado.fecha)} días
+                  </div>
+                </div>
               </div>
+
+              <a
+                href={seleccionado.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "10px",
+                  background: "linear-gradient(135deg, #4285f4 0%, #34a853 100%)",
+                  color: "white",
+                  padding: "16px",
+                  borderRadius: "12px",
+                  textDecoration: "none",
+                  fontWeight: "600",
+                  fontSize: "15px",
+                  transition: "transform 0.2s ease"
+                }}
+              >
+                📁 Abrir en Google Drive
+              </a>
             </div>
           </div>
-        );
-      })()}
+        )}
+      </div>
+
+      {/* Footer */}
+      <div style={{ 
+        textAlign: "center", 
+        marginTop: "40px", 
+        padding: "20px",
+        color: "#64748b",
+        fontSize: "12px"
+      }}>
+        Mostrando {siniestrosFiltrados.length} de {SINIESTROS_REALES.length} siniestros • 
+        Última actualización: {new Date().toLocaleDateString('es-AR')}
+      </div>
     </div>
   );
 }
