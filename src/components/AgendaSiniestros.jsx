@@ -18,6 +18,15 @@ const ESTADOS = {
   cierre: { nombre: 'Cierre', color: '#22c55e', icono: '✅' },
 };
 
+// Mapear estado de Integrity a estado de la agenda
+const mapearEstadoIntegrity = (estadoIntegrity) => {
+  const estado = (estadoIntegrity || '').toLowerCase();
+  if (estado === 'solicitada') return 'recepcion';
+  if (estado === 'finalizada') return 'cierre';
+  if (estado.includes('proceso') || estado.includes('ejecucion')) return 'informe';
+  return 'recepcion'; // Default
+};
+
 const SCRAPER_URL = 'http://localhost:5000/api/integrity';
 
 export default function AgendaSiniestros({ onAbrirDictamen, onSiniestrosCargados, onCambiarEstado }) {
@@ -28,14 +37,18 @@ export default function AgendaSiniestros({ onAbrirDictamen, onSiniestrosCargados
   const [cargando, setCargando] = useState(false);
   const [scraperStatus, setScraperStatus] = useState(null);
   const [scraperCargando, setScraperCargando] = useState(false);
+  const [mostrarMenuScraper, setMostrarMenuScraper] = useState(false);
 
   // Función para ejecutar el scraper de Integrity
-  const ejecutarScraperIntegrity = async () => {
+  const ejecutarScraperIntegrity = async (soloNuevos = true) => {
     setScraperCargando(true);
-    setScraperStatus({ tipo: 'info', mensaje: 'Ejecutando scraper...' });
+    setMostrarMenuScraper(false);
+    setScraperStatus({ tipo: 'info', mensaje: soloNuevos ? 'Buscando siniestros nuevos...' : 'Cargando todos los siniestros...' });
+    
+    const url = soloNuevos ? SCRAPER_URL : `${SCRAPER_URL}/todos`;
     
     try {
-      const response = await fetch(SCRAPER_URL, {
+      const response = await fetch(url, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
       });
@@ -51,34 +64,41 @@ export default function AgendaSiniestros({ onAbrirDictamen, onSiniestrosCargados
       } else if (data.siniestros && data.siniestros.length > 0) {
         // Convertir siniestros del scraper al formato de la agenda
         const nuevosSiniestros = data.siniestros.map((s, i) => ({
-          id: `SCRAPER_${s.id}_${Date.now()}`,
+          id: `INT_${s.id}_${Date.now()}_${i}`,
           numero: s.numero_siniestro,
           compania: 'INTEGRITY',
           patente: s.patente,
           asegurado: s.asegurado,
           fecha: s.fecha_siniestro,
-          estado: 'recepcion', // Nuevos entran en recepción
+          estado: mapearEstadoIntegrity(s.estado),
+          estadoIntegrity: s.estado, // Guardar estado original
           tipo: s.tipo,
           carpetaId: COMPANIAS.INTEGRITY.carpetaId,
           fechaAsignacion: s.fecha_asignacion,
           origen: 'scraper',
         }));
         
-        // Agregar a siniestros existentes (evitar duplicados)
+        // Agregar a siniestros existentes (evitar duplicados por número)
         setSiniestros(prev => {
           const existentes = new Set(prev.map(s => s.numero));
           const nuevos = nuevosSiniestros.filter(s => !existentes.has(s.numero));
-          return [...nuevos, ...prev];
+          if (nuevos.length > 0) {
+            return [...nuevos, ...prev];
+          }
+          // Si no hay nuevos, reemplazar los existentes con datos actualizados
+          const numerosNuevos = new Set(nuevosSiniestros.map(s => s.numero));
+          const sinActualizar = prev.filter(s => !numerosNuevos.has(s.numero));
+          return [...nuevosSiniestros, ...sinActualizar];
         });
         
         setScraperStatus({ 
           tipo: 'success', 
-          mensaje: `✓ ${data.siniestros.length} siniestros nuevos en Solicitada` 
+          mensaje: `✓ ${data.siniestros.length} siniestros cargados` 
         });
       } else {
         setScraperStatus({ 
           tipo: 'info', 
-          mensaje: `Sin siniestros pendientes (${data.total_extraidos} en total)` 
+          mensaje: soloNuevos ? 'Sin siniestros nuevos pendientes' : 'No se encontraron siniestros' 
         });
       }
     } catch (error) {
@@ -92,9 +112,15 @@ export default function AgendaSiniestros({ onAbrirDictamen, onSiniestrosCargados
       }
     } finally {
       setScraperCargando(false);
-      // Limpiar status después de 10 segundos
-      setTimeout(() => setScraperStatus(null), 10000);
+      setTimeout(() => setScraperStatus(null), 8000);
     }
+  };
+
+  // Cambiar estado de un siniestro
+  const cambiarEstado = (siniestroId, nuevoEstado) => {
+    setSiniestros(prev => 
+      prev.map(s => s.id === siniestroId ? { ...s, estado: nuevoEstado } : s)
+    );
   };
 
   // Calcular días transcurridos
@@ -145,37 +171,96 @@ export default function AgendaSiniestros({ onAbrirDictamen, onSiniestrosCargados
           📋 Agenda de Siniestros
         </h1>
         
-        {/* Botón Scraper Integrity */}
-        <button
-          onClick={ejecutarScraperIntegrity}
-          disabled={scraperCargando}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 20px',
-            backgroundColor: scraperCargando ? '#94a3b8' : '#7c3aed',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            cursor: scraperCargando ? 'not-allowed' : 'pointer',
-            fontSize: '14px',
-            fontWeight: '600',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-            transition: 'all 0.2s',
-          }}
-        >
-          {scraperCargando ? (
-            <>
-              <span style={{ animation: 'spin 1s linear infinite' }}>⟳</span>
-              Extrayendo...
-            </>
-          ) : (
-            <>
-              🔄 Scraper Integrity
-            </>
+        {/* Botón Scraper con menú desplegable */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setMostrarMenuScraper(!mostrarMenuScraper)}
+            disabled={scraperCargando}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 20px',
+              backgroundColor: scraperCargando ? '#94a3b8' : '#7c3aed',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: scraperCargando ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            }}
+          >
+            {scraperCargando ? (
+              <>
+                <span style={{ animation: 'spin 1s linear infinite' }}>⟳</span>
+                Extrayendo...
+              </>
+            ) : (
+              <>
+                🔄 Scraper Integrity ▾
+              </>
+            )}
+          </button>
+          
+          {/* Menú desplegable */}
+          {mostrarMenuScraper && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              marginTop: '4px',
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              overflow: 'hidden',
+              zIndex: 100,
+              minWidth: '220px',
+            }}>
+              <button
+                onClick={() => ejecutarScraperIntegrity(true)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: 'white',
+                  border: 'none',
+                  borderBottom: '1px solid #e2e8f0',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#f1f5f9'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+              >
+                📥 <strong>Solo nuevos</strong>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                  Estado "Solicitada"
+                </div>
+              </button>
+              <button
+                onClick={() => ejecutarScraperIntegrity(false)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '12px 16px',
+                  backgroundColor: 'white',
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#f1f5f9'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+              >
+                📋 <strong>Todos los siniestros</strong>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                  Cualquier estado
+                </div>
+              </button>
+            </div>
           )}
-        </button>
+        </div>
       </div>
 
       {/* Status del Scraper */}
@@ -198,6 +283,14 @@ export default function AgendaSiniestros({ onAbrirDictamen, onSiniestrosCargados
            scraperStatus.tipo === 'success' ? '✅' : 'ℹ️'}
           {scraperStatus.mensaje}
         </div>
+      )}
+
+      {/* Cerrar menú al hacer click afuera */}
+      {mostrarMenuScraper && (
+        <div 
+          style={{ position: 'fixed', inset: 0, zIndex: 50 }}
+          onClick={() => setMostrarMenuScraper(false)}
+        />
       )}
 
       {/* Tabs de Compañías */}
@@ -297,6 +390,7 @@ export default function AgendaSiniestros({ onAbrirDictamen, onSiniestrosCargados
           borderRadius: '8px',
           fontSize: '14px',
           outline: 'none',
+          boxSizing: 'border-box',
         }}
       />
 
@@ -314,18 +408,19 @@ export default function AgendaSiniestros({ onAbrirDictamen, onSiniestrosCargados
             <p>No hay siniestros {estadoFiltro ? `en estado "${ESTADOS[estadoFiltro]?.nombre}"` : ''}</p>
             {companiaActiva === 'INTEGRITY' && (
               <button
-                onClick={ejecutarScraperIntegrity}
+                onClick={() => ejecutarScraperIntegrity(false)}
                 style={{
                   marginTop: '12px',
-                  padding: '8px 16px',
+                  padding: '10px 20px',
                   backgroundColor: '#7c3aed',
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',
                   cursor: 'pointer',
+                  fontSize: '14px',
                 }}
               >
-                🔄 Buscar en portal Integrity
+                🔄 Cargar siniestros de Integrity
               </button>
             )}
           </div>
@@ -343,75 +438,92 @@ export default function AgendaSiniestros({ onAbrirDictamen, onSiniestrosCargados
                   padding: '16px',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                   borderLeft: `4px solid ${estado.color}`,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
                 }}
               >
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <span style={{ fontWeight: '700', color: '#1e293b' }}>
-                      {siniestro.numero}
-                    </span>
-                    <span style={{
-                      padding: '2px 8px',
-                      backgroundColor: estado.color,
-                      color: 'white',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                    }}>
-                      {estado.icono} {estado.nombre}
-                    </span>
-                    {siniestro.origen === 'scraper' && (
-                      <span style={{
-                        padding: '2px 6px',
-                        backgroundColor: '#7c3aed',
-                        color: 'white',
-                        borderRadius: '4px',
-                        fontSize: '10px',
-                      }}>
-                        NUEVO
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: '700', color: '#1e293b' }}>
+                        {siniestro.numero}
                       </span>
+                      
+                      {/* Selector de estado */}
+                      <select
+                        value={siniestro.estado}
+                        onChange={(e) => cambiarEstado(siniestro.id, e.target.value)}
+                        style={{
+                          padding: '4px 8px',
+                          backgroundColor: estado.color,
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {Object.entries(ESTADOS).map(([key, est]) => (
+                          <option key={key} value={key}>
+                            {est.icono} {est.nombre}
+                          </option>
+                        ))}
+                      </select>
+                      
+                      {siniestro.estadoIntegrity && (
+                        <span style={{
+                          padding: '2px 6px',
+                          backgroundColor: '#e2e8f0',
+                          color: '#475569',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                        }}>
+                          Portal: {siniestro.estadoIntegrity}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ color: '#64748b', fontSize: '13px' }}>
+                      <span style={{ marginRight: '16px' }}>🚗 {siniestro.patente}</span>
+                      <span>👤 {siniestro.asegurado}</span>
+                    </div>
+                    {siniestro.tipo && (
+                      <div style={{ color: '#94a3b8', fontSize: '12px', marginTop: '4px' }}>
+                        {siniestro.tipo}
+                      </div>
                     )}
                   </div>
-                  <div style={{ color: '#64748b', fontSize: '13px' }}>
-                    <span style={{ marginRight: '16px' }}>🚗 {siniestro.patente}</span>
-                    <span>👤 {siniestro.asegurado}</span>
-                  </div>
-                </div>
-                
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '16px' 
-                }}>
-                  <div style={{ 
-                    textAlign: 'center',
-                    padding: '4px 12px',
-                    backgroundColor: getColorDias(dias),
-                    color: 'white',
-                    borderRadius: '8px',
-                    minWidth: '60px',
-                  }}>
-                    <div style={{ fontSize: '18px', fontWeight: '700' }}>{dias}</div>
-                    <div style={{ fontSize: '10px' }}>días</div>
-                  </div>
                   
-                  <button
-                    onClick={() => onAbrirDictamen && onAbrirDictamen(siniestro)}
-                    style={{
-                      padding: '8px 12px',
-                      backgroundColor: '#8b5cf6',
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: '12px' 
+                  }}>
+                    <div style={{ 
+                      textAlign: 'center',
+                      padding: '4px 12px',
+                      backgroundColor: getColorDias(dias),
                       color: 'white',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                    }}
-                  >
-                    ⚖️ Dictamen
-                  </button>
+                      borderRadius: '8px',
+                      minWidth: '50px',
+                    }}>
+                      <div style={{ fontSize: '18px', fontWeight: '700' }}>{dias}</div>
+                      <div style={{ fontSize: '10px' }}>días</div>
+                    </div>
+                    
+                    <button
+                      onClick={() => onAbrirDictamen && onAbrirDictamen(siniestro)}
+                      style={{
+                        padding: '8px 12px',
+                        backgroundColor: '#8b5cf6',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                      }}
+                    >
+                      ⚖️ Dictamen
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -419,7 +531,7 @@ export default function AgendaSiniestros({ onAbrirDictamen, onSiniestrosCargados
         )}
       </div>
 
-      {/* CSS para animación de loading */}
+      {/* CSS para animación */}
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
