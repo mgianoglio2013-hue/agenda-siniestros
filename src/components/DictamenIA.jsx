@@ -1,355 +1,398 @@
-import { useState } from "react";
+import { useState } from 'react'
 
-// Ley de Tránsito Argentina - Artículos relevantes
-const ARTICULOS = {
-  "39": "Prioridad de paso - El que viene por la derecha tiene prioridad",
-  "40": "Giros - Debe advertir con luz de giro con 30m de antelación",
-  "41": "Adelantamiento - Solo por la izquierda",
-  "42": "Velocidad - Prohibido variar bruscamente",
-  "43": "Marcha atrás - Debe asegurarse de no embestir",
-  "48": "Velocidad máxima - 40km/h calles, 60km/h avenidas",
-  "50": "Prohibiciones - No conducir con impedimentos"
-};
-
-// Palabras clave para detectar infracciones
-const PATRONES_CULPA = [
-  { palabras: ["marcha atrás", "marcha atras", "retrocediendo", "retroceder"], articulo: "43", culpa: 100, descripcion: "Maniobra de marcha atrás sin precaución" },
-  { palabras: ["no cedí", "no cedi", "no le di paso", "no frené", "no frene"], articulo: "39", culpa: 80, descripcion: "No ceder el paso" },
-  { palabras: ["giré sin", "gire sin", "doblé sin", "doble sin", "sin señalizar"], articulo: "40", culpa: 70, descripcion: "Giro sin señalización" },
-  { palabras: ["estacionado", "detenido", "parado"], articulo: "43", culpa: 0, descripcion: "Vehículo estacionado (sin culpa)" },
-  { palabras: ["exceso de velocidad", "muy rápido", "alta velocidad"], articulo: "48", culpa: 80, descripcion: "Exceso de velocidad" },
-  { palabras: ["semáforo en rojo", "semaforo en rojo", "luz roja"], articulo: "50", culpa: 100, descripcion: "Cruzar semáforo en rojo" },
-  { palabras: ["no lo vi", "no lo ví", "no miré", "no mire", "distracción"], articulo: "50", culpa: 70, descripcion: "Falta de atención" },
-  { palabras: ["choqué", "choque", "impacté", "impacte", "embestí", "embesti", "colisioné", "colisione"], articulo: "42", culpa: 60, descripcion: "Colisión activa" },
-];
-
-// Función de análisis local
-const analizarLocal = (declaracion, numeroSiniestro) => {
-  const texto = declaracion.toLowerCase();
-  
-  // Detectar infracciones
-  let infraccionesDetectadas = [];
-  let culpaTotal = 0;
-  let articulosViolados = [];
-
-  PATRONES_CULPA.forEach(patron => {
-    patron.palabras.forEach(palabra => {
-      if (texto.includes(palabra) && !infraccionesDetectadas.includes(patron.descripcion)) {
-        infraccionesDetectadas.push(patron.descripcion);
-        articulosViolados.push(`Art. ${patron.articulo}`);
-        culpaTotal = Math.max(culpaTotal, patron.culpa);
-      }
-    });
-  });
-
-  // Si menciona marcha atrás y vehículo estacionado = culpa del que hacía marcha atrás
-  const haciaAtras = texto.includes("marcha atr") || texto.includes("retrocedi");
-  const vehiculoEstacionado = texto.includes("estacionado") || texto.includes("detenido");
-
-  let conductorA = {
-    identificacion: "Asegurado (declarante)",
-    porcentaje_culpa: haciaAtras ? 100 : (culpaTotal > 0 ? culpaTotal : 50),
-    infracciones: haciaAtras ? ["Maniobra de marcha atrás sin precaución adecuada"] : infraccionesDetectadas,
-    articulos_violados: haciaAtras ? ["Art. 43 - Marcha atrás"] : articulosViolados
-  };
-
-  let conductorB = {
-    identificacion: "Tercero",
-    porcentaje_culpa: vehiculoEstacionado ? 0 : (100 - conductorA.porcentaje_culpa),
-    infracciones: vehiculoEstacionado ? [] : ["Posible contribución al siniestro"],
-    articulos_violados: []
-  };
-
-  // Caso específico: marcha atrás contra estacionado
-  if (haciaAtras && vehiculoEstacionado) {
-    conductorA.porcentaje_culpa = 100;
-    conductorA.infracciones = ["Realizó marcha atrás sin verificar que no hubiera obstáculos"];
-    conductorA.articulos_violados = ["Art. 43 - Marcha atrás: debe asegurarse de no embestir"];
-    conductorB.porcentaje_culpa = 0;
-    conductorB.infracciones = [];
-    conductorB.identificacion = "Tercero (vehículo estacionado)";
-  }
-
-  // Generar conclusión
-  let conclusion = "";
-  let recomendacion = "";
-
-  if (conductorA.porcentaje_culpa === 100) {
-    conclusion = `El asegurado es 100% responsable del siniestro. ${conductorA.infracciones[0]}. El tercero no tiene responsabilidad ya que su vehículo se encontraba correctamente estacionado.`;
-    recomendacion = "APROBADO para pago al tercero";
-  } else if (conductorA.porcentaje_culpa >= 70) {
-    conclusion = `El asegurado tiene responsabilidad mayoritaria (${conductorA.porcentaje_culpa}%) en el siniestro por ${conductorA.infracciones[0]?.toLowerCase() || 'las infracciones detectadas'}.`;
-    recomendacion = "APROBADO para pago proporcional";
-  } else if (conductorA.porcentaje_culpa >= 50) {
-    conclusion = `Responsabilidad compartida. Ambos conductores contribuyeron al siniestro.`;
-    recomendacion = "REQUIERE MÁS INFORMACIÓN";
-  } else {
-    conclusion = `El tercero tiene mayor responsabilidad en el siniestro.`;
-    recomendacion = "RECHAZADO - Reclamar al tercero";
-  }
-
-  return {
-    conductor_a: conductorA,
-    conductor_b: conductorB,
-    conclusion: conclusion,
-    recomendacion: recomendacion
-  };
-};
+// Reglas de tránsito Argentina (Ley 24.449 y decretos)
+const REGLAS_TRANSITO = [
+  { articulo: 'Art. 39 inc. a', texto: 'Prioridad de paso en encrucijada sin señalizar: vehículo que viene por la derecha' },
+  { articulo: 'Art. 39 inc. b', texto: 'En rotondas: prioridad del que circula dentro de la rotonda' },
+  { articulo: 'Art. 39 inc. c', texto: 'Peatones tienen prioridad en sendas peatonales' },
+  { articulo: 'Art. 40', texto: 'Velocidades máximas según zona (40-130 km/h según vía)' },
+  { articulo: 'Art. 41', texto: 'Distancia de seguimiento mínima' },
+  { articulo: 'Art. 42', texto: 'Adelantamiento: solo por la izquierda en vías de doble mano' },
+  { articulo: 'Art. 43', texto: 'Giros: señalización previa obligatoria' },
+  { articulo: 'Art. 44', texto: 'Marcha atrás: solo si no entorpece ni es peligroso' },
+  { articulo: 'Art. 48', texto: 'Estacionamiento: a 10m de esquinas, no en doble fila' },
+]
 
 export default function DictamenIA({ siniestro, onVolver }) {
-  const [declaracion, setDeclaracion] = useState("");
-  const [analizando, setAnalizando] = useState(false);
-  const [dictamen, setDictamen] = useState(null);
-  const [error, setError] = useState(null);
+  const [paso, setPaso] = useState(1)
+  const [descripcion, setDescripcion] = useState('')
+  const [analizando, setAnalizando] = useState(false)
+  const [dictamen, setDictamen] = useState(null)
 
-  const analizarDeclaracion = async () => {
-    if (!declaracion.trim()) {
-      setError("Ingresá la declaración del siniestro para analizar.");
-      return;
+  // Simular análisis IA
+  const analizarConIA = async () => {
+    setAnalizando(true)
+    
+    // Simular delay de procesamiento
+    await new Promise(r => setTimeout(r, 2000))
+    
+    // Análisis simulado basado en palabras clave
+    const texto = descripcion.toLowerCase()
+    let resultado = {
+      responsabilidad: 'concurrente',
+      porcentaje: 50,
+      fundamento: '',
+      articulos: []
     }
 
-    setAnalizando(true);
-    setError(null);
-    setDictamen(null);
-
-    // Simular tiempo de análisis
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    try {
-      const resultado = analizarLocal(declaracion, siniestro?.numero);
-      setDictamen(resultado);
-    } catch (err) {
-      console.error("Error al analizar:", err);
-      setError(`Error al analizar: ${err.message}`);
-    } finally {
-      setAnalizando(false);
+    if (texto.includes('rotonda') || texto.includes('glorieta')) {
+      resultado = {
+        responsabilidad: texto.includes('tercero') ? 'sin_responsabilidad' : 'comprometida',
+        porcentaje: texto.includes('tercero') ? 0 : 100,
+        fundamento: 'El vehículo que ingresa a la rotonda debe ceder el paso a los que ya circulan dentro.',
+        articulos: ['Art. 39 inc. b']
+      }
+    } else if (texto.includes('derecha') || texto.includes('prioridad')) {
+      resultado = {
+        responsabilidad: 'comprometida',
+        porcentaje: 80,
+        fundamento: 'No respetó prioridad de paso del vehículo que venía por la derecha en encrucijada sin señalizar.',
+        articulos: ['Art. 39 inc. a']
+      }
+    } else if (texto.includes('marcha atrás') || texto.includes('retrocediendo')) {
+      resultado = {
+        responsabilidad: 'comprometida',
+        porcentaje: 100,
+        fundamento: 'La maniobra de retroceso generó el siniestro. El conductor tiene responsabilidad total.',
+        articulos: ['Art. 44']
+      }
+    } else if (texto.includes('estacionado') || texto.includes('detenido')) {
+      resultado = {
+        responsabilidad: 'sin_responsabilidad',
+        porcentaje: 0,
+        fundamento: 'El vehículo asegurado se encontraba correctamente estacionado/detenido al momento del impacto.',
+        articulos: ['Art. 48']
+      }
+    } else if (texto.includes('alcance') || texto.includes('por atrás')) {
+      resultado = {
+        responsabilidad: 'sin_responsabilidad',
+        porcentaje: 0,
+        fundamento: 'El tercero no mantuvo distancia de seguimiento adecuada, impactando por atrás.',
+        articulos: ['Art. 41']
+      }
     }
-  };
+
+    setDictamen(resultado)
+    setAnalizando(false)
+    setPaso(3)
+  }
+
+  const responsabilidadLabels = {
+    comprometida: { label: 'RESPONSABILIDAD COMPROMETIDA', color: '#ef4444', desc: 'Culpa del asegurado' },
+    concurrente: { label: 'RESPONSABILIDAD CONCURRENTE', color: '#f59e0b', desc: 'Culpa compartida' },
+    sin_responsabilidad: { label: 'SIN RESPONSABILIDAD', color: '#22c55e', desc: 'Culpa del tercero' }
+  }
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      backgroundColor: "#f8fafc",
-      fontFamily: "system-ui, -apple-system, sans-serif"
+    <div style={{ 
+      minHeight: '100vh', 
+      backgroundColor: '#f8fafc',
+      padding: '24px'
     }}>
-      {/* Header */}
-      <header style={{
-        backgroundColor: "#ffffff",
-        borderBottom: "1px solid #e2e8f0",
-        padding: "16px 24px",
-        display: "flex",
-        alignItems: "center",
-        gap: "16px"
-      }}>
-        <button
-          onClick={onVolver}
-          style={{
-            padding: "8px 16px",
-            borderRadius: "8px",
-            border: "1px solid #e2e8f0",
-            backgroundColor: "#ffffff",
-            cursor: "pointer",
-            fontSize: "14px",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px"
-          }}
-        >
-          ← Volver
-        </button>
-        <div>
-          <h1 style={{ margin: 0, fontSize: "20px", fontWeight: "700", color: "#1e293b" }}>
-            ⚖️ Dictamen de Culpabilidad
-          </h1>
-          <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
-            Siniestro #{siniestro?.numero || "N/D"} - {siniestro?.cia || "INTEGRITY"}
-          </p>
-        </div>
-      </header>
-
-      <div style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-        <div style={{ display: "grid", gridTemplateColumns: dictamen ? "1fr 1fr" : "1fr", gap: "24px" }}>
-          {/* Panel de entrada */}
-          <div style={{
-            backgroundColor: "#ffffff",
-            borderRadius: "12px",
-            border: "1px solid #e2e8f0",
-            padding: "24px"
+      <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ marginBottom: '24px' }}>
+          <button
+            onClick={onVolver}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              backgroundColor: 'white',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              marginBottom: '16px'
+            }}
+          >
+            ← Volver a la Agenda
+          </button>
+          
+          <h1 style={{ 
+            fontSize: '24px', 
+            fontWeight: '700', 
+            color: '#1e293b',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
           }}>
-            <h2 style={{ margin: "0 0 16px", fontSize: "16px", fontWeight: "600", color: "#1e293b" }}>
-              Declaración del Siniestro
-            </h2>
-            <p style={{ margin: "0 0 16px", fontSize: "13px", color: "#64748b" }}>
-              Pegá la declaración de las partes involucradas. El sistema analizará según la Ley de Tránsito Argentina.
+            ⚖️ Dictamen IA
+          </h1>
+          
+          {siniestro && (
+            <p style={{ color: '#64748b', marginTop: '8px' }}>
+              Siniestro #{siniestro.numero} • {siniestro.compania || 'INTEGRITY'}
             </p>
-            
-            <textarea
-              value={declaracion}
-              onChange={(e) => setDeclaracion(e.target.value)}
-              placeholder="Ejemplo: El día 15/03/2026 a las 14:30hs, circulaba por Av. Colón en dirección norte cuando al llegar a la intersección con calle San Juan..."
-              style={{
-                width: "100%",
-                minHeight: "300px",
-                padding: "16px",
-                borderRadius: "8px",
-                border: "1px solid #e2e8f0",
-                fontSize: "14px",
-                lineHeight: "1.6",
-                resize: "vertical",
-                fontFamily: "inherit",
-                boxSizing: "border-box"
-              }}
-            />
+          )}
+        </div>
 
-            {error && (
-              <div style={{
-                marginTop: "16px",
-                padding: "12px 16px",
-                backgroundColor: "#fef2f2",
-                borderRadius: "8px",
-                color: "#dc2626",
-                fontSize: "14px"
-              }}>
-                {error}
-              </div>
-            )}
-
-            <button
-              onClick={analizarDeclaracion}
-              disabled={analizando}
+        {/* Pasos */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '16px', 
+          marginBottom: '32px' 
+        }}>
+          {[1, 2, 3].map(n => (
+            <div 
+              key={n}
               style={{
-                marginTop: "16px",
-                width: "100%",
-                padding: "14px 20px",
-                borderRadius: "10px",
-                border: "none",
-                background: analizando 
-                  ? "#94a3b8" 
-                  : "linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)",
-                color: "#ffffff",
-                fontSize: "15px",
-                fontWeight: "600",
-                cursor: analizando ? "wait" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px"
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
               }}
             >
-              {analizando ? (
-                <>⏳ Analizando...</>
-              ) : (
-                <>⚖️ Analizar Culpabilidad</>
-              )}
-            </button>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                backgroundColor: paso >= n ? '#8b5cf6' : '#e2e8f0',
+                color: paso >= n ? 'white' : '#64748b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '600'
+              }}>
+                {n}
+              </div>
+              <span style={{ 
+                color: paso >= n ? '#1e293b' : '#94a3b8',
+                fontWeight: paso === n ? '600' : '400'
+              }}>
+                {n === 1 && 'Descripción'}
+                {n === 2 && 'Análisis'}
+                {n === 3 && 'Dictamen'}
+              </span>
+            </div>
+          ))}
+        </div>
 
-            {/* Info de normativa */}
-            <div style={{
-              marginTop: "24px",
-              padding: "16px",
-              backgroundColor: "#f8fafc",
-              borderRadius: "8px"
-            }}>
-              <h3 style={{ margin: "0 0 12px", fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
-                📚 Normativa aplicada
-              </h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {Object.entries(ARTICULOS).map(([num, desc]) => (
-                  <div key={num} style={{ fontSize: "12px", color: "#64748b" }}>
-                    <strong style={{ color: "#475569" }}>Art. {num}:</strong> {desc}
+        {/* Contenido por paso */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '16px',
+          padding: '32px',
+          border: '1px solid #e2e8f0'
+        }}>
+          {/* Paso 1: Descripción */}
+          {paso === 1 && (
+            <>
+              <h2 style={{ 
+                fontSize: '18px', 
+                fontWeight: '600', 
+                marginBottom: '16px',
+                color: '#1e293b'
+              }}>
+                Descripción del siniestro
+              </h2>
+              <p style={{ color: '#64748b', marginBottom: '16px' }}>
+                Describí cómo ocurrió el siniestro según la declaración del asegurado y/o tercero.
+              </p>
+              <textarea
+                value={descripcion}
+                onChange={(e) => setDescripcion(e.target.value)}
+                placeholder="Ej: El asegurado circulaba por calle San Martín cuando al llegar a la intersección con calle Belgrano, un vehículo tercero que venía por la derecha impactó en su lateral izquierdo..."
+                style={{
+                  width: '100%',
+                  minHeight: '200px',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: '1px solid #e2e8f0',
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  resize: 'vertical',
+                  outline: 'none',
+                  fontFamily: 'inherit'
+                }}
+              />
+              <button
+                onClick={() => setPaso(2)}
+                disabled={!descripcion.trim()}
+                style={{
+                  marginTop: '24px',
+                  padding: '14px 28px',
+                  backgroundColor: descripcion.trim() ? '#8b5cf6' : '#e2e8f0',
+                  color: descripcion.trim() ? 'white' : '#94a3b8',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: descripcion.trim() ? 'pointer' : 'not-allowed'
+                }}
+              >
+                Continuar →
+              </button>
+            </>
+          )}
+
+          {/* Paso 2: Análisis */}
+          {paso === 2 && (
+            <>
+              <h2 style={{ 
+                fontSize: '18px', 
+                fontWeight: '600', 
+                marginBottom: '16px',
+                color: '#1e293b'
+              }}>
+                Reglas de tránsito aplicables
+              </h2>
+              
+              <div style={{ 
+                backgroundColor: '#f8fafc', 
+                padding: '16px', 
+                borderRadius: '12px',
+                marginBottom: '24px',
+                maxHeight: '250px',
+                overflowY: 'auto'
+              }}>
+                {REGLAS_TRANSITO.map((regla, i) => (
+                  <div key={i} style={{ 
+                    padding: '10px 0',
+                    borderBottom: i < REGLAS_TRANSITO.length - 1 ? '1px solid #e2e8f0' : 'none'
+                  }}>
+                    <span style={{ 
+                      fontWeight: '600', 
+                      color: '#8b5cf6' 
+                    }}>
+                      {regla.articulo}
+                    </span>
+                    <span style={{ color: '#64748b', marginLeft: '8px' }}>
+                      {regla.texto}
+                    </span>
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
 
-          {/* Panel de resultado */}
-          {dictamen && (
-            <div style={{
-              backgroundColor: "#ffffff",
-              borderRadius: "12px",
-              border: "1px solid #e2e8f0",
-              padding: "24px"
-            }}>
               <div style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                justifyContent: "space-between",
-                marginBottom: "20px"
+                backgroundColor: '#8b5cf610', 
+                padding: '16px', 
+                borderRadius: '12px',
+                marginBottom: '24px'
               }}>
-                <h2 style={{ margin: 0, fontSize: "16px", fontWeight: "600", color: "#1e293b" }}>
-                  📋 Resultado del Dictamen
-                </h2>
-                <span style={{
-                  padding: "6px 12px",
-                  borderRadius: "20px",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  backgroundColor: dictamen.recomendacion?.includes("APROBADO") 
-                    ? "#dcfce7" 
-                    : dictamen.recomendacion?.includes("RECHAZADO")
-                      ? "#fef2f2"
-                      : "#fef9c3",
-                  color: dictamen.recomendacion?.includes("APROBADO") 
-                    ? "#16a34a" 
-                    : dictamen.recomendacion?.includes("RECHAZADO")
-                      ? "#dc2626"
-                      : "#ca8a04"
-                }}>
-                  {dictamen.recomendacion}
-                </span>
+                <strong style={{ color: '#8b5cf6' }}>Descripción ingresada:</strong>
+                <p style={{ marginTop: '8px', color: '#1e293b' }}>{descripcion}</p>
               </div>
 
-              {/* Conductor A - Asegurado */}
-              <div style={{
-                padding: "16px",
-                backgroundColor: dictamen.conductor_a?.porcentaje_culpa > 50 ? "#fef2f2" : "#f0fdf4",
-                borderRadius: "10px",
-                marginBottom: "12px",
-                border: `1px solid ${dictamen.conductor_a?.porcentaje_culpa > 50 ? "#fecaca" : "#bbf7d0"}`
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "8px" }}>
-                  <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
-                    🚗 Asegurado
-                  </h3>
-                  <span style={{
-                    fontSize: "28px",
-                    fontWeight: "700",
-                    color: dictamen.conductor_a?.porcentaje_culpa > 50 ? "#dc2626" : "#16a34a"
-                  }}>
-                    {dictamen.conductor_a?.porcentaje_culpa || 0}%
-                  </span>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setPaso(1)}
+                  style={{
+                    padding: '14px 28px',
+                    backgroundColor: 'white',
+                    color: '#64748b',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    fontSize: '16px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ← Volver
+                </button>
+                <button
+                  onClick={analizarConIA}
+                  disabled={analizando}
+                  style={{
+                    flex: 1,
+                    padding: '14px 28px',
+                    backgroundColor: analizando ? '#c4b5fd' : '#8b5cf6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: analizando ? 'wait' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {analizando ? (
+                    <>
+                      <span className="spinner" style={{
+                        width: '20px',
+                        height: '20px',
+                        border: '2px solid white',
+                        borderTopColor: 'transparent',
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite'
+                      }} />
+                      Analizando con IA...
+                    </>
+                  ) : (
+                    '🤖 Analizar con IA'
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Paso 3: Dictamen */}
+          {paso === 3 && dictamen && (
+            <>
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <div style={{
+                  display: 'inline-block',
+                  padding: '12px 24px',
+                  backgroundColor: responsabilidadLabels[dictamen.responsabilidad].color,
+                  color: 'white',
+                  borderRadius: '12px',
+                  fontSize: '18px',
+                  fontWeight: '700'
+                }}>
+                  {responsabilidadLabels[dictamen.responsabilidad].label}
                 </div>
-                <p style={{ margin: "0 0 8px", fontSize: "13px", color: "#475569" }}>
-                  {dictamen.conductor_a?.identificacion}
+                <p style={{ 
+                  marginTop: '8px', 
+                  color: '#64748b',
+                  fontSize: '14px'
+                }}>
+                  {responsabilidadLabels[dictamen.responsabilidad].desc}
                 </p>
-                {dictamen.conductor_a?.infracciones?.length > 0 && (
-                  <div style={{ marginTop: "12px" }}>
-                    <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "6px", fontWeight: "600" }}>
-                      INFRACCIONES DETECTADAS:
-                    </div>
-                    <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "13px", color: "#475569" }}>
-                      {dictamen.conductor_a.infracciones.map((inf, i) => (
-                        <li key={i} style={{ marginBottom: "4px" }}>{inf}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {dictamen.conductor_a?.articulos_violados?.length > 0 && (
-                  <div style={{ marginTop: "12px" }}>
-                    <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "6px", fontWeight: "600" }}>
-                      ARTÍCULOS APLICABLES:
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                      {dictamen.conductor_a.articulos_violados.map((art, i) => (
+              </div>
+
+              {dictamen.responsabilidad === 'concurrente' && (
+                <div style={{ 
+                  textAlign: 'center',
+                  marginBottom: '24px'
+                }}>
+                  <span style={{ fontSize: '48px', fontWeight: '700', color: '#f59e0b' }}>
+                    {dictamen.porcentaje}%
+                  </span>
+                  <p style={{ color: '#64748b' }}>Responsabilidad asegurado</p>
+                </div>
+              )}
+
+              <div style={{ 
+                backgroundColor: '#f8fafc',
+                padding: '20px',
+                borderRadius: '12px',
+                marginBottom: '24px'
+              }}>
+                <h3 style={{ 
+                  fontWeight: '600', 
+                  color: '#1e293b',
+                  marginBottom: '12px'
+                }}>
+                  Fundamento
+                </h3>
+                <p style={{ color: '#64748b', lineHeight: '1.6' }}>
+                  {dictamen.fundamento}
+                </p>
+                
+                {dictamen.articulos.length > 0 && (
+                  <div style={{ marginTop: '16px' }}>
+                    <strong style={{ color: '#8b5cf6' }}>Artículos aplicables:</strong>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                      {dictamen.articulos.map((art, i) => (
                         <span key={i} style={{
-                          padding: "4px 10px",
-                          backgroundColor: "#ffffff",
-                          borderRadius: "6px",
-                          fontSize: "12px",
-                          color: "#7c3aed",
-                          fontWeight: "500",
-                          border: "1px solid #e9d5ff"
+                          backgroundColor: '#8b5cf620',
+                          color: '#8b5cf6',
+                          padding: '4px 12px',
+                          borderRadius: '20px',
+                          fontSize: '13px',
+                          fontWeight: '500'
                         }}>
                           {art}
                         </span>
@@ -359,99 +402,53 @@ export default function DictamenIA({ siniestro, onVolver }) {
                 )}
               </div>
 
-              {/* Conductor B - Tercero */}
-              <div style={{
-                padding: "16px",
-                backgroundColor: dictamen.conductor_b?.porcentaje_culpa > 50 ? "#fef2f2" : "#f0fdf4",
-                borderRadius: "10px",
-                marginBottom: "16px",
-                border: `1px solid ${dictamen.conductor_b?.porcentaje_culpa > 50 ? "#fecaca" : "#bbf7d0"}`
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "8px" }}>
-                  <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
-                    🚙 Tercero
-                  </h3>
-                  <span style={{
-                    fontSize: "28px",
-                    fontWeight: "700",
-                    color: dictamen.conductor_b?.porcentaje_culpa > 50 ? "#dc2626" : "#16a34a"
-                  }}>
-                    {dictamen.conductor_b?.porcentaje_culpa || 0}%
-                  </span>
-                </div>
-                <p style={{ margin: "0 0 8px", fontSize: "13px", color: "#475569" }}>
-                  {dictamen.conductor_b?.identificacion}
-                </p>
-                {dictamen.conductor_b?.infracciones?.length > 0 && (
-                  <div style={{ marginTop: "8px" }}>
-                    <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "4px" }}>Observaciones:</div>
-                    <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#475569" }}>
-                      {dictamen.conductor_b.infracciones.map((inf, i) => (
-                        <li key={i}>{inf}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-
-              {/* Conclusión */}
-              <div style={{
-                padding: "16px",
-                backgroundColor: "#f8fafc",
-                borderRadius: "10px",
-                marginBottom: "20px",
-                border: "1px solid #e2e8f0"
-              }}>
-                <h3 style={{ margin: "0 0 8px", fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
-                  📝 Conclusión
-                </h3>
-                <p style={{ margin: 0, fontSize: "14px", color: "#475569", lineHeight: "1.6" }}>
-                  {dictamen.conclusion}
-                </p>
-              </div>
-
-              {/* Botones de acción */}
-              <div style={{ display: "flex", gap: "12px" }}>
+              <div style={{ display: 'flex', gap: '12px' }}>
                 <button
                   onClick={() => {
-                    alert(`✅ Dictamen aprobado para siniestro #${siniestro?.numero}\n\nAsegurado: ${dictamen.conductor_a?.porcentaje_culpa}% culpa\nTercero: ${dictamen.conductor_b?.porcentaje_culpa}% culpa\n\n${dictamen.recomendacion}`);
-                    onVolver();
+                    setPaso(1)
+                    setDictamen(null)
+                    setDescripcion('')
                   }}
                   style={{
-                    flex: 1,
-                    padding: "12px 20px",
-                    borderRadius: "8px",
-                    border: "none",
-                    backgroundColor: "#22c55e",
-                    color: "#ffffff",
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    cursor: "pointer"
+                    padding: '14px 28px',
+                    backgroundColor: 'white',
+                    color: '#64748b',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '10px',
+                    fontSize: '16px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
                   }}
                 >
-                  ✓ Aprobar Dictamen
+                  🔄 Nuevo análisis
                 </button>
                 <button
-                  onClick={() => setDictamen(null)}
+                  onClick={onVolver}
                   style={{
                     flex: 1,
-                    padding: "12px 20px",
-                    borderRadius: "8px",
-                    border: "1px solid #e2e8f0",
-                    backgroundColor: "#ffffff",
-                    color: "#475569",
-                    fontSize: "14px",
-                    fontWeight: "600",
-                    cursor: "pointer"
+                    padding: '14px 28px',
+                    backgroundColor: '#22c55e',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: 'pointer'
                   }}
                 >
-                  ✎ Volver a Analizar
+                  ✓ Aprobar dictamen
                 </button>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
-  );
+  )
 }
