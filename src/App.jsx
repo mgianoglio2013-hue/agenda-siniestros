@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import AgendaSiniestros from './components/AgendaSiniestros.jsx'
-import DictamenIA from './components/DictamenIA.jsx'
+import DetalleSiniestro from './components/DetalleSiniestro.jsx'
 import ChatAgente from './components/ChatAgente.jsx'
 
 function App() {
@@ -8,40 +8,31 @@ function App() {
   const [siniestroSeleccionado, setSiniestroSeleccionado] = useState(null)
   const [siniestros, setSiniestros] = useState([])
 
-  // Callback para recibir siniestros desde AgendaSiniestros
-  const handleSiniestrosCargados = (listaSiniestros) => {
-    setSiniestros(listaSiniestros)
-  }
-
-  // Callback para cambiar estado de un siniestro
-  const handleCambiarEstado = (siniestroId, nuevoEstado) => {
-    setSiniestros(prev => prev.map(s => 
-      s.id === siniestroId ? { ...s, estado: nuevoEstado } : s
-    ))
+  const handleCambiarEstado = (id, nuevoEstado) => {
+    setSiniestros(prev => prev.map(s => s.id === id ? { ...s, estado: nuevoEstado } : s))
   }
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
       {modulo === 'agenda' && (
-        <AgendaSiniestros 
-          onAbrirDictamen={(siniestro) => {
+        <AgendaSiniestros
+          onAbrirDetalle={(siniestro) => {
             setSiniestroSeleccionado(siniestro)
-            setModulo('dictamen')
+            setModulo('detalle')
           }}
-          onSiniestrosCargados={handleSiniestrosCargados}
+          onSiniestrosCargados={setSiniestros}
           onCambiarEstado={handleCambiarEstado}
         />
       )}
-      
-      {modulo === 'dictamen' && (
-        <DictamenIA 
+
+      {modulo === 'detalle' && siniestroSeleccionado && (
+        <DetalleSiniestro
           siniestro={siniestroSeleccionado}
           onVolver={() => setModulo('agenda')}
         />
       )}
 
-      {/* Chat del Agente IA - siempre visible */}
-      <ChatAgente 
+      <ChatAgente
         siniestros={siniestros}
         onCambiarEstado={handleCambiarEstado}
       />
