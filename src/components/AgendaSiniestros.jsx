@@ -112,16 +112,22 @@ export default function AgendaSiniestros({ onAbrirDetalle, onSiniestrosCargados,
     onCambiarEstado?.(id, nuevoEstado);
   };
 
-  // Filtrado
+  // Filtrado + orden descendente por fecha asignación
   const filtrados = siniestros
     .filter(s => s.compania === companiaActiva)
     .filter(s => !filtroEstado || s.estado === filtroEstado)
     .filter(s => !filtroSub || s.sub === filtroSub)
     .filter(s => {
       if (!busqueda) return true;
-      const q = busqueda.toLowerCase();
-      return s.numero?.toLowerCase().includes(q) || s.patente?.toLowerCase().includes(q) || s.asegurado?.toLowerCase().includes(q);
-    });
+      const q = busqueda.toLowerCase().trim();
+      return (
+        (s.numero || '').toLowerCase().includes(q) ||
+        (s.patente || '').toLowerCase().includes(q) ||
+        (s.asegurado || '').toLowerCase().includes(q) ||
+        (s.tipo || '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => new Date(b.fechaAsignacion) - new Date(a.fechaAsignacion));
 
   const contar = (estado, sub = null) =>
     siniestros.filter(s => s.compania === companiaActiva && s.estado === estado && (!sub || s.sub === sub)).length;
