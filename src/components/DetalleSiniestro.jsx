@@ -103,21 +103,30 @@ export default function DetalleSiniestro({ siniestro, onVolver }) {
     setChatMsgs(nuevosMsgs)
     setChatCargando(true)
 
-    const system = `Sos un asistente experto en peritación de siniestros de tránsito en Argentina. Trabajás con el perito liquidador Mariano Gianoglio.
+    const system = `Sos un asistente experto en peritación de siniestros de seguros automotor en Argentina. Trabajás con el perito liquidador Mariano Gianoglio.
 
-CONTEXTO DEL CASO:
+MARCO LEGAL Y TÉCNICO:
+- Ley de Seguros 17.418: contrato de seguro, obligaciones, franquicias, siniestros, plazos
+- Ley Nacional de Tránsito 24.449: prioridades de paso, señalización, velocidad, responsabilidad civil
+- Normativas de la Superintendencia de Seguros de la Nación (SSN)
+- Cláusulas generales y particulares de pólizas automotor
+
+TIPOS DE SINIESTRO:
+- INSPECCIÓN INTEGRAL (todo riesgo): solo asegurado. Se perita el vehículo y se compara con la franquicia. Si supera → deriva a taller colaborador o del asegurado. Si no supera → no cubre.
+- DAÑOS PARCIALES/TOTALES, ROBO, INCENDIO: verificar franquicia. Solo asegurado.
+- LIQUIDACIÓN RC DAÑOS (responsabilidad civil): reclamo de tercero. Se analizan declaraciones de ambas partes y se determina culpabilidad según Ley 24.449. Se negocia oferta económica.
+
+CONTEXTO DEL CASO ACTUAL:
 - Siniestro: ${siniestro?.numero}
-- Asegurado: ${datos.asegurado_nombre || siniestro?.asegurado || '—'}
-- Patente asegurado: ${datos.vehiculo_patente || siniestro?.patente || '—'}
-- Tercero: ${datos.tercero_nombre || '—'} ${datos.tercero_apellido || ''}
-- Patente tercero: ${datos.tercero_vehiculo_patente || '—'}
-- Monto reclamado: $${datos.monto_reclamado || '?'}
-- Monto peritado: $${datos.monto_peritado || '?'}
-- Lugar del siniestro: ${lugarSiniestro || datos.lugar_siniestro || '—'}
-- Dictamen actual: ${dictamenIA ? dictamenIA.substring(0, 400) + '...' : 'No generado aún'}
+- Tipo: ${siniestro?.tipo || "—"}
+- Asegurado: ${datos.asegurado_nombre || siniestro?.asegurado || "—"} | Patente: ${datos.vehiculo_patente || siniestro?.patente || "—"}
+- Tercero: ${datos.tercero_nombre || "—"} ${datos.tercero_apellido || ""} | Patente: ${datos.tercero_vehiculo_patente || "—"}
+- Franquicia: $${datos.franquicia || "?"}
+- Monto reclamado: $${datos.monto_reclamado || "?"} | Peritado: $${datos.monto_peritado || "?"}
+- Lugar: ${lugarSiniestro || datos.lugar_siniestro || "—"}
+- Dictamen: ${dictamenIA ? dictamenIA.substring(0, 350) + "..." : "No generado"}
 
-Respondé de forma directa, práctica y en español rioplatense. Si te piden redactar un email, dalo completo listo para enviar. Si te piden analizar la ley, cita el artículo exacto.`
-
+Respondé directo y en español rioplatense. Emails: completos listos para enviar. Artículos de ley: citá el número exacto. Para inspección integral: indicá si supera la franquicia y qué corresponde hacer.`
     const messages = nuevosMsgs
       .filter(m => m.tipo !== 'ia' || nuevosMsgs.indexOf(m) > 0)
       .map(m => ({ role: m.tipo === 'user' ? 'user' : 'assistant', content: m.texto }))
@@ -176,8 +185,8 @@ Respondé de forma directa, práctica y en español rioplatense. Si te piden red
             ))}
           </div>
           {tit('💰 Importes')}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-            {[['MONTO RECLAMADO', 'monto_reclamado', '#dc2626', '#fca5a5'], ['MONTO PERITADO', 'monto_peritado', '#16a34a', '#86efac'], ['OFERTA', 'oferta', '#2563eb', '#93c5fd']].map(([l, k, c, b]) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
+            {[['FRANQUICIA', 'franquicia', '#7c3aed', '#ede9fe'], ['MONTO RECLAMADO', 'monto_reclamado', '#dc2626', '#fca5a5'], ['MONTO PERITADO', 'monto_peritado', '#16a34a', '#86efac'], ['OFERTA', 'oferta', '#2563eb', '#93c5fd']].map(([l, k, c, b]) => (
               <div key={k}>
                 <label style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, display: 'block', marginBottom: '4px' }}>{l}</label>
                 <input value={datos[k] || ''} onChange={e => upd(k, e.target.value)} placeholder="$0"
@@ -185,6 +194,14 @@ Respondé de forma directa, práctica y en español rioplatense. Si te piden red
               </div>
             ))}
           </div>
+          {datos.franquicia && datos.monto_peritado && (
+            <div style={{ marginTop: '10px', padding: '10px 14px', borderRadius: '8px', backgroundColor: parseFloat(datos.monto_peritado.replace(/[^0-9.]/g,'')) > parseFloat(datos.franquicia.replace(/[^0-9.]/g,'')) ? '#f0fdf4' : '#fef2f2', border: parseFloat(datos.monto_peritado.replace(/[^0-9.]/g,'')) > parseFloat(datos.franquicia.replace(/[^0-9.]/g,'')) ? '1px solid #86efac' : '1px solid #fca5a5' }}>
+              {parseFloat(datos.monto_peritado.replace(/[^0-9.]/g,'')) > parseFloat(datos.franquicia.replace(/[^0-9.]/g,''))
+                ? <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '13px' }}>✅ Daños superan la franquicia — derivar a taller</span>
+                : <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '13px' }}>❌ Daños NO superan la franquicia — no cubre</span>
+              }
+            </div>
+          )}
         </>)}
 
         {/* ASEGURADO */}
