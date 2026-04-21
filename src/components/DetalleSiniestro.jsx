@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 const WORKER = 'https://integrity-monitor.mgianoglio2013.workers.dev'
 const DRIVE_CONVENIOS = 'https://drive.google.com/drive/folders/1GCNODjvlybIQrpS_Yo0VonUhK0ZXmYPg'
@@ -29,6 +29,42 @@ export default function DetalleSiniestro({ siniestro, onVolver }) {
   })
   const [dictamenIA, setDictamenIA] = useState(datos.dictamen_resultado || '')
   const [generando, setGenerando] = useState(false)
+  const [cargandoDetalle, setCargandoDetalle] = useState(false)
+
+  useEffect(() => {
+    if (!siniestro?.id) return
+    if (datos.decl_asegurado) return
+    setCargandoDetalle(true)
+    fetch(`${WORKER}/api/detalle?id=${siniestro.id}`)
+      .then(r => r.json())
+      .then(({ data: d }) => {
+        if (!d) return
+        const updates = {}
+        if (!datos.asegurado_nombre && d.asegurado)       updates.asegurado_nombre   = d.asegurado
+        if (!datos.asegurado_email  && d.email)           updates.asegurado_email    = d.email
+        if (!datos.poliza           && d.poliza)          updates.poliza             = d.poliza
+        if (!datos.productor_nombre && d.productor)       updates.productor_nombre   = d.productor
+        if (!datos.decl_asegurado   && d.descripcion)     updates.decl_asegurado     = d.descripcion
+        if (!datos.monto_reclamado  && d.montoPretendido) updates.monto_reclamado    = String(d.montoPretendido)
+        if (!datos.oferta           && d.montoAcordado)   updates.oferta             = String(d.montoAcordado)
+        if (!datos.tercero_nombre   && d.nombreTercero) {
+          const partes = (d.nombreTercero || '').trim().split(' ')
+          updates.tercero_apellido = partes[0] || ''
+          updates.tercero_nombre   = partes.slice(1).join(' ') || ''
+        }
+        if (!datos.fundamentoRC && d.fundamentoRC) updates.fundamentoRC = d.fundamentoRC
+        if (!datos.etapa        && d.etapa)        updates.etapa        = d.etapa
+        if (!datos.coverage     && d.coverage)     updates.coverage     = d.coverage
+        if (Object.keys(updates).length > 0) {
+          const nd = { ...datos, ...updates }
+          setDatos(nd)
+          try { localStorage.setItem('sin_' + siniestro.id, JSON.stringify(nd)) } catch {}
+        }
+      })
+      .catch(() => {})
+      .finally(() => setCargandoDetalle(false))
+  }, [siniestro?.id])
+
   const [fotos, setFotos] = useState({ asegurado: [], tercero: [] })
   const [fotoAmpliada, setFotoAmpliada] = useState(null)
   const [zoom, setZoom] = useState(1)
@@ -68,7 +104,6 @@ export default function DetalleSiniestro({ siniestro, onVolver }) {
   )
 
   const tit = txt => <div style={{ fontWeight: 700, fontSize: '14px', color: '#374151', marginBottom: '14px' }}>{txt}</div>
-
   const grid2 = ch => <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>{ch}</div>
 
   const generarDictamen = async () => {
@@ -102,53 +137,23 @@ export default function DetalleSiniestro({ siniestro, onVolver }) {
     const nuevosMsgs = [...chatMsgs, { tipo: 'user', texto: msg }]
     setChatMsgs(nuevosMsgs)
     setChatCargando(true)
-
-    const system = `Sos un asistente experto en peritación de siniestros de seguros automotor en Argentina. Trabajás con el perito liquidador Mariano Gianoglio.
-
-MARCO LEGAL Y TÉCNICO:
-- Ley de Seguros 17.418: contrato de seguro, obligaciones, franquicias, siniestros, plazos
-- Ley Nacional de Tránsito 24.449: prioridades de paso, señalización, velocidad, responsabilidad civil
-- Normativas de la Superintendencia de Seguros de la Nación (SSN)
-- Cláusulas generales y particulares de pólizas automotor
-
-TIPOS DE SINIESTRO:
-- INSPECCIÓN INTEGRAL (todo riesgo): solo asegurado. Se perita el vehículo y se compara con la franquicia. Si supera → deriva a taller colaborador o del asegurado. Si no supera → no cubre.
-- DAÑOS PARCIALES/TOTALES, ROBO, INCENDIO: verificar franquicia. Solo asegurado.
-- LIQUIDACIÓN RC DAÑOS (responsabilidad civil): reclamo de tercero. Se analizan declaraciones de ambas partes y se determina culpabilidad según Ley 24.449. Se negocia oferta económica.
-
-CONTEXTO DEL CASO ACTUAL:
-- Siniestro: ${siniestro?.numero}
-- Tipo: ${siniestro?.tipo || "—"}
-- Asegurado: ${datos.asegurado_nombre || siniestro?.asegurado || "—"} | Patente: ${datos.vehiculo_patente || siniestro?.patente || "—"}
-- Tercero: ${datos.tercero_nombre || "—"} ${datos.tercero_apellido || ""} | Patente: ${datos.tercero_vehiculo_patente || "—"}
-- Franquicia: $${datos.franquicia || "?"}
-- Monto reclamado: $${datos.monto_reclamado || "?"} | Peritado: $${datos.monto_peritado || "?"}
-- Lugar: ${lugarSiniestro || datos.lugar_siniestro || "—"}
-- Dictamen: ${dictamenIA ? dictamenIA.substring(0, 350) + "..." : "No generado"}
-
-Respondé directo y en español rioplatense. Emails: completos listos para enviar. Artículos de ley: citá el número exacto. Para inspección integral: indicá si supera la franquicia y qué corresponde hacer.`
-    const messages = nuevosMsgs
-      .filter(m => m.tipo !== 'ia' || nuevosMsgs.indexOf(m) > 0)
-      .map(m => ({ role: m.tipo === 'user' ? 'user' : 'assistant', content: m.texto }))
-
+    const system = `Sos un asistente experto en peritación de siniestros de seguros automotor en Argentina. Trabajás con el perito liquidador Mariano Gianoglio.\n\nCONTEXTO:\n- Siniestro: ${siniestro?.numero}\n- Tipo: ${siniestro?.tipo || '—'}\n- Asegurado: ${datos.asegurado_nombre || siniestro?.asegurado || '—'} | Patente: ${datos.vehiculo_patente || siniestro?.patente || '—'}\n- Tercero: ${datos.tercero_nombre || '—'} ${datos.tercero_apellido || ''}\n- Monto reclamado: $${datos.monto_reclamado || '?'} | Peritado: $${datos.monto_peritado || '?'}\n- Declaración asegurado: ${datos.decl_asegurado || '—'}\n- Dictamen: ${dictamenIA ? dictamenIA.substring(0, 300) + '...' : 'No generado'}\n\nRespondé directo en español rioplatense.`
+    const messages = nuevosMsgs.filter(m => m.tipo !== 'ia' || nuevosMsgs.indexOf(m) > 0).map(m => ({ role: m.tipo === 'user' ? 'user' : 'assistant', content: m.texto }))
     try {
       const respuesta = await llamarIA(system, messages, 900)
       setChatMsgs(prev => [...prev, { tipo: 'ia', texto: respuesta }])
     } catch (e) {
-      setChatMsgs(prev => [...prev, { tipo: 'ia', texto: '❌ Error: ' + e.message + '\n\nVerificá que el Worker tenga configurada la variable ANTHROPIC_API_KEY.' }])
+      setChatMsgs(prev => [...prev, { tipo: 'ia', texto: '❌ Error: ' + e.message }])
     }
     setChatCargando(false)
     setTimeout(() => { if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight }, 100)
   }
 
-  const mapUrl = lugarSiniestro
-    ? `https://maps.google.com/maps?q=${encodeURIComponent(lugarSiniestro)}&output=embed`
-    : null
+  const mapUrl = lugarSiniestro ? `https://maps.google.com/maps?q=${encodeURIComponent(lugarSiniestro)}&output=embed` : null
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: 'system-ui,sans-serif' }}>
 
-      {/* HEADER */}
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #e2e8f0', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '16px', position: 'sticky', top: 0, zIndex: 100 }}>
         <button onClick={onVolver} style={{ padding: '7px 14px', backgroundColor: '#f1f5f9', border: 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>← Volver</button>
         <div style={{ flex: 1 }}>
@@ -158,10 +163,10 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
         <div style={{ textAlign: 'right', fontSize: '12px', color: '#94a3b8' }}>
           <div>Asignado: {fmt(siniestro?.fechaAsignacion)}</div>
           <div>Siniestro: {fmt(siniestro?.fechaSiniestro)}</div>
+          {cargandoDetalle && <div style={{ color: '#8b5cf6', marginTop: '4px' }}>⏳ Cargando datos...</div>}
         </div>
       </div>
 
-      {/* TABS */}
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #e2e8f0', padding: '0 20px', display: 'flex', overflowX: 'auto' }}>
         {SECCIONES.map(s => (
           <button key={s} onClick={() => setSeccion(s)}
@@ -173,11 +178,10 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
 
       <div style={{ padding: '20px', maxWidth: '960px', margin: '0 auto' }}>
 
-        {/* RESUMEN */}
         {seccion === 'resumen' && card(<>
           {tit('📋 Datos del siniestro')}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-            {[['N° Siniestro', siniestro?.numero], ['N° Póliza', raw?.Poliza || datos.poliza || '—'], ['Fecha Siniestro', fmt(siniestro?.fechaSiniestro)], ['Fecha Asignación', fmt(siniestro?.fechaAsignacion)], ['Estado Integrity', siniestro?.estadoIntegrity || '—'], ['Tipo', siniestro?.tipo || '—']].map(([l, v]) => (
+            {[['N° Siniestro', siniestro?.numero], ['N° Póliza', datos.poliza || raw?.Poliza || '—'], ['Fecha Siniestro', fmt(siniestro?.fechaSiniestro)], ['Fecha Asignación', fmt(siniestro?.fechaAsignacion)], ['Estado Integrity', siniestro?.estadoIntegrity || '—'], ['Tipo', siniestro?.tipo || '—']].map(([l, v]) => (
               <div key={l} style={{ backgroundColor: '#f8fafc', borderRadius: '8px', padding: '12px' }}>
                 <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px' }}>{l}</div>
                 <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>{v}</div>
@@ -195,16 +199,14 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
             ))}
           </div>
           {datos.franquicia && datos.monto_peritado && (
-            <div style={{ marginTop: '10px', padding: '10px 14px', borderRadius: '8px', backgroundColor: parseFloat(datos.monto_peritado.replace(/[^0-9.]/g,'')) > parseFloat(datos.franquicia.replace(/[^0-9.]/g,'')) ? '#f0fdf4' : '#fef2f2', border: parseFloat(datos.monto_peritado.replace(/[^0-9.]/g,'')) > parseFloat(datos.franquicia.replace(/[^0-9.]/g,'')) ? '1px solid #86efac' : '1px solid #fca5a5' }}>
-              {parseFloat(datos.monto_peritado.replace(/[^0-9.]/g,'')) > parseFloat(datos.franquicia.replace(/[^0-9.]/g,''))
+            <div style={{ marginTop: '10px', padding: '10px 14px', borderRadius: '8px', backgroundColor: parseFloat(datos.monto_peritado) > parseFloat(datos.franquicia) ? '#f0fdf4' : '#fef2f2', border: parseFloat(datos.monto_peritado) > parseFloat(datos.franquicia) ? '1px solid #86efac' : '1px solid #fca5a5' }}>
+              {parseFloat(datos.monto_peritado) > parseFloat(datos.franquicia)
                 ? <span style={{ color: '#16a34a', fontWeight: 700, fontSize: '13px' }}>✅ Daños superan la franquicia — derivar a taller</span>
-                : <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '13px' }}>❌ Daños NO superan la franquicia — no cubre</span>
-              }
+                : <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '13px' }}>❌ Daños NO superan la franquicia — no cubre</span>}
             </div>
           )}
         </>)}
 
-        {/* ASEGURADO */}
         {seccion === 'asegurado' && card(<>
           {tit('👤 Datos del Asegurado')}
           {grid2(<><F label="Nombre completo" campo="asegurado_nombre" /><F label="DNI" campo="asegurado_dni" /><F label="Teléfono / Cel" campo="asegurado_cel" /><F label="Email" campo="asegurado_email" type="email" /><F label="N° Póliza" campo="poliza" /></>)}
@@ -214,7 +216,6 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
           {grid2(<><F label="Nombre" campo="productor_nombre" /><F label="Teléfono" campo="productor_cel" /><F label="Email" campo="productor_email" type="email" /></>)}
         </>)}
 
-        {/* TERCERO */}
         {seccion === 'tercero' && card(<>
           {tit('👤 Reclamante / Tercero')}
           {grid2(<><F label="Nombre" campo="tercero_nombre" /><F label="Apellido" campo="tercero_apellido" /><F label="DNI" campo="tercero_dni" /><F label="Teléfono / Cel" campo="tercero_cel" /><F label="Email" campo="tercero_email" type="email" /><F label="Titular del vehículo (si difiere)" campo="tercero_titular" /></>)}
@@ -222,42 +223,30 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
           {grid2(<><F label="Marca" campo="tercero_vehiculo_marca" /><F label="Modelo" campo="tercero_vehiculo_modelo" /><F label="Patente" campo="tercero_vehiculo_patente" /></>)}
         </>)}
 
-        {/* DICTAMEN IA + MAPA */}
         {seccion === 'declaraciones' && <>
-          {/* Lugar del siniestro + mapa */}
           {card(<>
             {tit('📍 Lugar del siniestro')}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
-              <input value={lugarSiniestro} onChange={e => { setLugarSiniestro(e.target.value); upd('lugar_siniestro', e.target.value) }}
-                placeholder="Ej: Av. Colón y Bv. San Juan, Córdoba"
-                style={{ flex: 1, padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '7px', fontSize: '13px', outline: 'none', backgroundColor: '#fafafa' }} />
-            </div>
-            {mapUrl ? (
-              <iframe src={mapUrl} width="100%" height="280" style={{ border: 0, borderRadius: '10px' }} allowFullScreen loading="lazy" title="Lugar del siniestro" />
-            ) : (
-              <div style={{ height: '120px', backgroundColor: '#f1f5f9', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '13px' }}>
-                📍 Escribí el lugar del siniestro para ver el mapa
-              </div>
-            )}
+            <input value={lugarSiniestro} onChange={e => { setLugarSiniestro(e.target.value); upd('lugar_siniestro', e.target.value) }}
+              placeholder="Ej: Av. Colón y Bv. San Juan, Córdoba"
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e2e8f0', borderRadius: '7px', fontSize: '13px', outline: 'none', backgroundColor: '#fafafa', boxSizing: 'border-box', marginBottom: '12px' }} />
+            {mapUrl
+              ? <iframe src={mapUrl} width="100%" height="280" style={{ border: 0, borderRadius: '10px' }} allowFullScreen loading="lazy" title="mapa" />
+              : <div style={{ height: '80px', backgroundColor: '#f1f5f9', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '13px' }}>📍 Escribí el lugar para ver el mapa</div>}
           </>)}
-
-          {/* Declaraciones */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             {card(<T label="Declaración del Asegurado" campo="decl_asegurado" rows={9} placeholder="Transcribí la declaración del asegurado..." />)}
             {card(<T label="Declaración del Tercero / Reclamante" campo="decl_tercero" rows={9} placeholder="Transcribí la declaración del tercero..." />)}
           </div>
-
           {card(<>
-            <T label="Aclaraciones del perito (la IA las incorpora)" campo="dictamen_aclaracion" rows={3} placeholder="Ej: El asegurado circulaba por avenida principal con prioridad de paso..." />
+            <T label="Aclaraciones del perito" campo="dictamen_aclaracion" rows={3} placeholder="Ej: El asegurado circulaba por avenida principal con prioridad de paso..." />
             <button onClick={generarDictamen} disabled={generando}
               style={{ width: '100%', padding: '12px', backgroundColor: generando ? '#94a3b8' : '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', cursor: generando ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: 700 }}>
               {generando ? '⟳ Analizando con IA...' : '⚖️ Generar Dictamen IA'}
             </button>
           </>)}
-
           {dictamenIA && card(<>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <div style={{ fontWeight: 700, fontSize: '14px', color: '#374151' }}>📋 Dictamen IA</div>
+              {tit('📋 Dictamen IA')}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={() => upd('dictamen_aprobado', false)} style={{ padding: '6px 14px', backgroundColor: !datos.dictamen_aprobado ? '#dc2626' : '#f1f5f9', color: !datos.dictamen_aprobado ? 'white' : '#64748b', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>✗ Rectificar</button>
                 <button onClick={() => upd('dictamen_aprobado', true)} style={{ padding: '6px 14px', backgroundColor: datos.dictamen_aprobado ? '#16a34a' : '#f1f5f9', color: datos.dictamen_aprobado ? 'white' : '#64748b', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>✓ Aprobar</button>
@@ -268,7 +257,6 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
           </>)}
         </>}
 
-        {/* FOTOS */}
         {seccion === 'fotos' && ['asegurado', 'tercero'].map(tipo => (
           <div key={tipo} style={{ backgroundColor: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -281,13 +269,11 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
             {fotos[tipo].length === 0
               ? <div style={{ textAlign: 'center', padding: '32px', color: '#94a3b8', border: '2px dashed #e2e8f0', borderRadius: '8px' }}>Sin fotos</div>
               : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px' }}>
-                {fotos[tipo].map((url, i) => <img key={i} src={url} alt="" onClick={() => { setFotoAmpliada(url); setZoom(1) }} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', border: '2px solid #e2e8f0' }} />)}
-              </div>
-            }
+                {fotos[tipo].map((url, i) => <img key={i} src={url} alt="" onClick={() => { setFotoAmpliada(url); setZoom(1) }} style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} />)}
+              </div>}
           </div>
         ))}
 
-        {/* DOCUMENTOS */}
         {seccion === 'documentos' && card(<>
           {tit('📄 Documentos del siniestro')}
           {[['📊 Planilla informe de inspección (Excel)', 'excel'], ['🧾 Presupuesto del tercero', 'presup'], ['📋 Certificado de cobertura', 'cert'], ['📝 Otros', 'otros']].map(([label, k]) => (
@@ -298,11 +284,8 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
               </label>
             </div>
           ))}
-
-          {/* CONVENIOS */}
           <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#faf5ff', borderRadius: '10px', border: '1px solid #e9d5ff' }}>
-            {tit('📝 Convenios (Word)')}
-            <p style={{ fontSize: '13px', color: '#6b7280', margin: '0 0 12px' }}>Descargá el modelo de convenio según el tipo de resolución del siniestro:</p>
+            {tit('📝 Convenios')}
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               {[['Convenio Asegurado', 'asegurado'], ['Convenio Tercero', 'tercero'], ['Convenio Conjunto', 'conjunto']].map(([label, tipo]) => (
                 <a key={tipo} href={DRIVE_CONVENIOS} target="_blank" rel="noopener noreferrer"
@@ -311,11 +294,9 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
                 </a>
               ))}
             </div>
-            <p style={{ fontSize: '11px', color: '#94a3b8', margin: '10px 0 0' }}>Los convenios se encuentran en la carpeta de Drive de Integrity. En Fase 5 se completarán automáticamente.</p>
           </div>
         </>)}
 
-        {/* NOTAS & CHAT */}
         {seccion === 'chat' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: '16px' }}>
             {card(<>
@@ -323,11 +304,8 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
               <textarea value={datos.notas || ''} onChange={e => upd('notas', e.target.value)} rows={18} placeholder="Anotaciones, historial de gestión, recordatorios..."
                 style={{ width: '100%', padding: '10px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '13px', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: '1.6' }} />
             </>)}
-
             <div style={{ backgroundColor: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', height: '520px' }}>
-              <div style={{ padding: '12px 16px', background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: 'white', fontSize: '13px', fontWeight: 700 }}>
-                🤖 Asistente IA — {siniestro?.numero}
-              </div>
+              <div style={{ padding: '12px 16px', background: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: 'white', fontSize: '13px', fontWeight: 700 }}>🤖 Asistente IA — {siniestro?.numero}</div>
               <div ref={chatRef} style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#0f0f1a' }}>
                 {chatMsgs.map((m, i) => (
                   <div key={i} style={{ alignSelf: m.tipo === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
@@ -335,22 +313,13 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
                     <div style={{ padding: '10px 14px', borderRadius: m.tipo === 'user' ? '16px 16px 4px 16px' : '4px 16px 16px 16px', backgroundColor: m.tipo === 'user' ? '#7c3aed' : '#1e1e38', color: 'white', fontSize: '13px', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>{m.texto}</div>
                   </div>
                 ))}
-                {chatCargando && (
-                  <div style={{ alignSelf: 'flex-start' }}>
-                    <div style={{ fontSize: '10px', color: '#6366f1', marginBottom: '3px', fontWeight: 600 }}>🤖 Asistente</div>
-                    <div style={{ padding: '10px 14px', borderRadius: '4px 16px 16px 16px', backgroundColor: '#1e1e38', color: '#a5b4fc', fontSize: '13px' }}>● ● ●</div>
-                  </div>
-                )}
+                {chatCargando && <div style={{ alignSelf: 'flex-start' }}><div style={{ fontSize: '10px', color: '#6366f1', marginBottom: '3px', fontWeight: 600 }}>🤖 Asistente</div><div style={{ padding: '10px 14px', borderRadius: '4px 16px 16px 16px', backgroundColor: '#1e1e38', color: '#a5b4fc', fontSize: '13px' }}>● ● ●</div></div>}
               </div>
-
-              {/* Sugerencias rápidas */}
               <div style={{ padding: '8px 12px', backgroundColor: '#1a1a2e', display: 'flex', gap: '6px', overflowX: 'auto' }}>
                 {['Redactá email al asegurado', 'Redactá email al tercero', 'Analizá la culpabilidad', 'Sugerí oferta económica'].map(s => (
-                  <button key={s} onClick={() => { setChatInput(s) }}
-                    style={{ padding: '4px 10px', backgroundColor: 'rgba(124,58,237,0.3)', color: '#c4b5fd', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '12px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap' }}>{s}</button>
+                  <button key={s} onClick={() => setChatInput(s)} style={{ padding: '4px 10px', backgroundColor: 'rgba(124,58,237,0.3)', color: '#c4b5fd', border: '1px solid rgba(124,58,237,0.4)', borderRadius: '12px', cursor: 'pointer', fontSize: '11px', whiteSpace: 'nowrap' }}>{s}</button>
                 ))}
               </div>
-
               <div style={{ padding: '10px 12px', backgroundColor: '#1e1e2e', borderTop: '1px solid #2d2d4e', display: 'flex', gap: '8px' }}>
                 <input value={chatInput} onChange={e => setChatInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarChat() } }}
@@ -366,7 +335,6 @@ Respondé directo y en español rioplatense. Emails: completos listos para envia
         )}
       </div>
 
-      {/* LIGHTBOX */}
       {fotoAmpliada && (
         <div onClick={() => setFotoAmpliada(null)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.93)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()} onWheel={e => { e.preventDefault(); setZoom(z => Math.min(Math.max(z + (e.deltaY < 0 ? 0.15 : -0.15), 0.5), 5)) }}>
